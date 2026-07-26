@@ -218,7 +218,7 @@ pub mod traits {
 }
 
 pub mod game {
-    pub use self::utils::{arena_info, get_ticks, get_cpu_time, get_heap_statistics, get_object_by_id, get_objects, get_objects_by_prototype, get_terrain_at};
+    pub use self::utils::{arena_info, get_ticks, get_cpu_time, get_heap_statistics, get_object_by_id, get_objects, get_objects_by_prototype, get_terrain_at, create_construction_site};
 
     pub mod visual {
         use js_sys::Object;
@@ -337,6 +337,7 @@ pub mod game {
         pub fn get_objects() -> Vec<crate::objects::GameObject> { Vec::new() }
         pub fn get_objects_by_prototype<T>(_prototype: T) -> Vec<T::Item> where T: crate::prototypes::PrototypeConstant { Vec::new() }
         pub fn get_terrain_at(_pos: &wasm_bindgen::JsValue) -> crate::constants::Terrain { crate::constants::Terrain::Plain }
+        pub fn create_construction_site(_x: u8, _y: u8, _structure_type: &js_sys::Object) -> Result<crate::objects::ConstructionSite, crate::constants::ReturnCode> { Err(crate::constants::ReturnCode::Error) }
     }
 
     pub mod pathfinder {
@@ -430,20 +431,20 @@ pub mod game {
         }
 
         #[derive(Debug, Clone, Serialize, Deserialize)]
-        pub struct SearchPathResult {
+        pub struct SearchResults {
             pub path: Vec<Position>,
             pub ops: u32,
             pub cost: u32,
             pub incomplete: bool,
         }
 
-        impl SearchPathResult {
+        impl SearchResults {
             pub fn path(&self) -> Vec<Position> { self.path.clone() }
             pub fn incomplete(&self) -> bool { self.incomplete }
         }
 
-        pub fn search_path(_origin: &crate::objects::GameObject, _goal: &wasm_bindgen::JsValue, _options: Option<&SearchPathOptions>) -> SearchPathResult {
-            SearchPathResult {
+        pub fn search_path(_origin: &crate::objects::GameObject, _goal: &wasm_bindgen::JsValue, _options: Option<&SearchPathOptions>) -> SearchResults {
+            SearchResults {
                 path: Vec::new(),
                 ops: 0,
                 cost: 0,
@@ -817,3 +818,10 @@ pub mod prototypes {
     pub use self::STRUCTURE_EXTENSION as STRUCTURE_EXTENSION_PROTOTYPE;
     pub use self::CONSTRUCTION_SITE as CONSTRUCTION_SITE_PROTOTYPE;
 }
+
+pub static STRUCTURE_TOWER_PROTOTYPE: js_sys::Object = js_sys::Object;
+pub static STRUCTURE_EXTENSION_PROTOTYPE: js_sys::Object = js_sys::Object;
+pub static STRUCTURE_SPAWN_PROTOTYPE: js_sys::Object = js_sys::Object;
+pub static STRUCTURE_RAMPART_PROTOTYPE: js_sys::Object = js_sys::Object;
+pub static STRUCTURE_CONTAINER_PROTOTYPE: js_sys::Object = js_sys::Object;
+

@@ -1,0 +1,25 @@
+[package]
+name = "mock-screeps-arena"
+version = "0.10.0"
+edition = "2021"
+
+[lib]
+name = "screeps_arena"
+
+[dependencies]
+arrayvec = "0.5"
+enum-iterator = "0.6"
+serde = { version = "1", features = ["derive"] }
+wasm-bindgen = { path = "../mock-wasm-bindgen" }
+js-sys = { path = "../mock-js-sys" }
+
+[features]
+default = []
+arena-basic = []
+arena-advanced = []
+arena-capture-the-flag = []
+arena-spawn-and-swamp = []
+arena-collect-and-control = []
+season3-spawn_strike = []
+season3-power_split = []
+season3-escort_run = []

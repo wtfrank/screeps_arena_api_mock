@@ -1,0 +1,10 @@
+[package]
+name = "real-js-sys"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "js_sys"
+
+[dependencies]
+js-sys = "0.3.69"

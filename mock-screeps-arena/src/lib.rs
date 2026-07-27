@@ -655,6 +655,16 @@ pub mod objects {
 
     // Dynamic trait implementations resolved via struct fields
 
+    impl OwnedStructureProperties for ConstructionSite {
+        fn my(&self) -> Option<bool> { Some(self.my) }
+    }
+
+    impl ConstructionSite {
+        pub fn my(&self) -> bool { self.my }
+        pub fn progress(&self) -> u32 { self.progress }
+        pub fn progress_total(&self) -> u32 { self.progress_total }
+    }
+
     impl Transferable for StructureSpawn {}
     impl Transferable for StructureTower {}
     impl Transferable for StructureExtension {}

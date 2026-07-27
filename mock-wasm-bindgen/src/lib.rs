@@ -4,16 +4,16 @@ pub mod prelude {
     pub use crate::wasm_bindgen;
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct JsValue;
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct JsValue(pub Option<String>);
 
 impl JsValue {
-    pub const NULL: JsValue = JsValue;
-    pub const UNDEFINED: JsValue = JsValue;
+    pub const NULL: JsValue = JsValue(None);
+    pub const UNDEFINED: JsValue = JsValue(None);
 
-    pub fn is_null(&self) -> bool { true }
-    pub fn is_undefined(&self) -> bool { true }
-    pub fn as_string(&self) -> Option<String> { None }
+    pub fn is_null(&self) -> bool { self.0.is_none() }
+    pub fn is_undefined(&self) -> bool { self.0.is_none() }
+    pub fn as_string(&self) -> Option<String> { self.0.clone() }
     pub fn as_f64(&self) -> Option<f64> { None }
     pub fn as_bool(&self) -> Option<bool> { None }
 }

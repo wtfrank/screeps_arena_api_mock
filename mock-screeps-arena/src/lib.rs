@@ -1,3 +1,5 @@
+pub mod ffi;
+
 pub mod constants {
     use serde::{Serialize, Deserialize};
 
@@ -746,66 +748,79 @@ pub mod prelude {
 pub mod prototypes {
     pub trait PrototypeConstant {
         type Item;
+        const ID: u32;
     }
 
     pub struct CREEP;
     impl PrototypeConstant for CREEP {
         type Item = crate::objects::Creep;
+        const ID: u32 = 1;
     }
 
     pub struct STRUCTURE_SPAWN;
     impl PrototypeConstant for STRUCTURE_SPAWN {
         type Item = crate::objects::StructureSpawn;
+        const ID: u32 = 2;
     }
 
     pub struct STRUCTURE_TOWER;
     impl PrototypeConstant for STRUCTURE_TOWER {
         type Item = crate::objects::StructureTower;
+        const ID: u32 = 3;
     }
 
     pub struct STRUCTURE_CONTAINER;
     impl PrototypeConstant for STRUCTURE_CONTAINER {
         type Item = crate::objects::StructureContainer;
+        const ID: u32 = 6;
     }
 
     pub struct RESOURCE;
     impl PrototypeConstant for RESOURCE {
         type Item = crate::objects::Resource;
+        const ID: u32 = 9;
     }
 
     pub struct SOURCE;
     impl PrototypeConstant for SOURCE {
         type Item = crate::objects::Source;
+        const ID: u32 = 10;
     }
 
     pub struct FLAG;
     impl PrototypeConstant for FLAG {
         type Item = crate::objects::Flag;
+        const ID: u32 = 11;
     }
 
     pub struct OWNED_STRUCTURE;
     impl PrototypeConstant for OWNED_STRUCTURE {
         type Item = crate::objects::OwnedStructure;
+        const ID: u32 = 16;
     }
 
     pub struct STRUCTURE_WALL;
     impl PrototypeConstant for STRUCTURE_WALL {
         type Item = crate::objects::StructureWall;
+        const ID: u32 = 8;
     }
 
     pub struct STRUCTURE_RAMPART;
     impl PrototypeConstant for STRUCTURE_RAMPART {
         type Item = crate::objects::StructureRampart;
+        const ID: u32 = 5;
     }
 
     pub struct STRUCTURE_EXTENSION;
     impl PrototypeConstant for STRUCTURE_EXTENSION {
         type Item = crate::objects::StructureExtension;
+        const ID: u32 = 4;
     }
 
     pub struct CONSTRUCTION_SITE;
     impl PrototypeConstant for CONSTRUCTION_SITE {
         type Item = crate::objects::ConstructionSite;
+        const ID: u32 = 15;
     }
 
     pub use self::CREEP as CREEP_PROTOTYPE;

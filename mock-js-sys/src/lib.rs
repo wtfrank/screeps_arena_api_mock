@@ -20,7 +20,7 @@ impl From<&str> for JsString {
 
 impl From<JsString> for JsValue {
     fn from(_: JsString) -> Self {
-        JsValue
+        JsValue(None)
     }
 }
 

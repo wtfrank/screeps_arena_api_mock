@@ -37,6 +37,25 @@ pub enum ActionId {
     SpawnCreep = 11,
 }
 
+impl ActionId {
+    pub fn from_u32(val: u32) -> Option<Self> {
+        match val {
+            1 => Some(Self::Move),
+            2 => Some(Self::Attack),
+            3 => Some(Self::RangedAttack),
+            4 => Some(Self::RangedMassAttack),
+            5 => Some(Self::Heal),
+            6 => Some(Self::RangedHeal),
+            7 => Some(Self::Harvest),
+            8 => Some(Self::Transfer),
+            9 => Some(Self::Withdraw),
+            10 => Some(Self::Build),
+            11 => Some(Self::SpawnCreep),
+            _ => None,
+        }
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct HostInterface {

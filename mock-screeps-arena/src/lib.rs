@@ -464,13 +464,14 @@ pub mod objects {
 
     #[derive(Clone, Debug, Default)]
     pub struct GameObject {
+        pub id: String,
         pub x: u8,
         pub y: u8,
     }
 
     impl GameObject {
         pub fn exists(&self) -> bool { true }
-        pub fn id(&self) -> JsString { JsString }
+        pub fn id(&self) -> JsString { JsString(self.id.clone()) }
         pub fn x(&self) -> u8 { self.x }
         pub fn y(&self) -> u8 { self.y }
         pub fn ticks_to_decay(&self) -> Option<u32> { None }
@@ -482,51 +483,68 @@ pub mod objects {
 
     impl GameObjectProperties for GameObject {
         fn exists(&self) -> bool { true }
-        fn id(&self) -> JsString { JsString }
+        fn id(&self) -> JsString { JsString(self.id.clone()) }
         fn x(&self) -> u8 { self.x }
         fn y(&self) -> u8 { self.y }
         fn ticks_to_decay(&self) -> Option<u32> { None }
     }
 
-    macro_rules! derive_game_object_wrappers {
-        ($($name:ident),*) => {
-            $(
-                #[derive(Clone, Debug)]
-                pub struct $name {
-                    pub base: GameObject,
+    macro_rules! define_mock_struct {
+        ($name:ident, { $($field_name:ident : $field_type:ty),* $(,)? }) => {
+            #[derive(Clone, Debug)]
+            pub struct $name {
+                pub base: GameObject,
+                $( pub $field_name : $field_type, )*
+            }
+            impl HasPosition for $name {
+                fn pos(&self) -> Position { self.base.pos() }
+            }
+            impl GameObjectProperties for $name {
+                fn exists(&self) -> bool { self.base.exists() }
+                fn id(&self) -> JsString { self.base.id() }
+                fn x(&self) -> u8 { self.base.x() }
+                fn y(&self) -> u8 { self.base.y() }
+                fn ticks_to_decay(&self) -> Option<u32> { self.base.ticks_to_decay() }
+            }
+            impl AsRef<GameObject> for $name {
+                fn as_ref(&self) -> &GameObject { &self.base }
+            }
+            impl std::ops::Deref for $name {
+                type Target = GameObject;
+                fn deref(&self) -> &Self::Target {
+                    &self.base
                 }
-                impl HasPosition for $name {
-                    fn pos(&self) -> Position { self.base.pos() }
-                }
-                impl GameObjectProperties for $name {
-                    fn exists(&self) -> bool { self.base.exists() }
-                    fn id(&self) -> JsString { self.base.id() }
-                    fn x(&self) -> u8 { self.base.x() }
-                    fn y(&self) -> u8 { self.base.y() }
-                    fn ticks_to_decay(&self) -> Option<u32> { self.base.ticks_to_decay() }
-                }
-                impl HasHits for $name {
-                    fn hits(&self) -> u32 { 100 }
-                    fn hits_max(&self) -> u32 { 100 }
-                }
-                impl AsRef<GameObject> for $name {
-                    fn as_ref(&self) -> &GameObject { &self.base }
-                }
-                impl std::ops::Deref for $name {
-                    type Target = GameObject;
-                    fn deref(&self) -> &Self::Target {
-                        &self.base
-                    }
-                }
-            )*
+            }
         };
     }
 
-    derive_game_object_wrappers!(
-        StructureSpawn, StructureTower, StructureExtension, StructureRampart,
-        StructureRoad, StructureWall, StructureContainer, Source, Resource,
-        ConstructionSite, Flag, ScoreCollector, AreaEffect, BonusFlag
-    );
+    define_mock_struct!(StructureSpawn, { hits: u32, hits_max: u32, energy: u32, energy_max: u32, my: Option<bool> });
+    define_mock_struct!(StructureTower, { hits: u32, hits_max: u32, energy: u32, energy_max: u32, my: Option<bool> });
+    define_mock_struct!(StructureExtension, { hits: u32, hits_max: u32, energy: u32, energy_max: u32, my: Option<bool> });
+    define_mock_struct!(StructureRampart, { hits: u32, hits_max: u32, my: Option<bool> });
+    define_mock_struct!(StructureContainer, { hits: u32, hits_max: u32, store: u32, store_max: u32 });
+    define_mock_struct!(StructureRoad, { hits: u32, hits_max: u32 });
+    define_mock_struct!(StructureWall, { hits: u32, hits_max: u32 });
+    define_mock_struct!(Source, { energy: u32, energy_max: u32 });
+    define_mock_struct!(Resource, { amount: u32, resource_type: String });
+    define_mock_struct!(ConstructionSite, { my: bool, progress: u32, progress_total: u32 });
+    define_mock_struct!(Flag, { my: Option<bool> });
+    define_mock_struct!(ScoreCollector, { my: bool });
+    define_mock_struct!(BonusFlag, { my: Option<bool> });
+    define_mock_struct!(AreaEffect, { effect_type: String });
+
+    impl HasHits for StructureSpawn { fn hits(&self) -> u32 { self.hits } fn hits_max(&self) -> u32 { self.hits_max } }
+    impl HasHits for StructureTower { fn hits(&self) -> u32 { self.hits } fn hits_max(&self) -> u32 { self.hits_max } }
+    impl HasHits for StructureExtension { fn hits(&self) -> u32 { self.hits } fn hits_max(&self) -> u32 { self.hits_max } }
+    impl HasHits for StructureRampart { fn hits(&self) -> u32 { self.hits } fn hits_max(&self) -> u32 { self.hits_max } }
+    impl HasHits for StructureContainer { fn hits(&self) -> u32 { self.hits } fn hits_max(&self) -> u32 { self.hits_max } }
+    impl HasHits for StructureRoad { fn hits(&self) -> u32 { self.hits } fn hits_max(&self) -> u32 { self.hits_max } }
+    impl HasHits for StructureWall { fn hits(&self) -> u32 { self.hits } fn hits_max(&self) -> u32 { self.hits_max } }
+
+    impl OwnedStructureProperties for StructureSpawn { fn my(&self) -> Option<bool> { self.my } }
+    impl OwnedStructureProperties for StructureTower { fn my(&self) -> Option<bool> { self.my } }
+    impl OwnedStructureProperties for StructureExtension { fn my(&self) -> Option<bool> { self.my } }
+    impl OwnedStructureProperties for StructureRampart { fn my(&self) -> Option<bool> { self.my } }
 
     impl StructureSpawn {
         pub fn spawn_creep(&self, _body: &[Part]) -> Result<Creep, ReturnCode> {
@@ -635,25 +653,7 @@ pub mod objects {
         fn store(&self) -> Store { Store }
     }
 
-    impl OwnedStructureProperties for StructureSpawn {
-        fn my(&self) -> Option<bool> { Some(true) }
-    }
-    impl OwnedStructureProperties for StructureTower {
-        fn my(&self) -> Option<bool> { Some(true) }
-    }
-    impl OwnedStructureProperties for StructureExtension {
-        fn my(&self) -> Option<bool> { Some(true) }
-    }
-    impl OwnedStructureProperties for StructureRampart {
-        fn my(&self) -> Option<bool> { Some(true) }
-    }
-    impl OwnedStructureProperties for ConstructionSite {
-        fn my(&self) -> Option<bool> { Some(true) }
-    }
-
-    impl ConstructionSite {
-        pub fn my(&self) -> bool { true }
-    }
+    // Dynamic trait implementations resolved via struct fields
 
     impl Transferable for StructureSpawn {}
     impl Transferable for StructureTower {}

@@ -10,29 +10,35 @@ impl Object {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct JsString;
+pub struct JsString(pub String);
 
 impl From<&str> for JsString {
-    fn from(_: &str) -> Self {
-        JsString
+    fn from(s: &str) -> Self {
+        JsString(s.to_string())
+    }
+}
+
+impl From<String> for JsString {
+    fn from(s: String) -> Self {
+        JsString(s)
     }
 }
 
 impl From<JsString> for JsValue {
-    fn from(_: JsString) -> Self {
-        JsValue(None)
+    fn from(s: JsString) -> Self {
+        JsValue(Some(s.0))
     }
 }
 
 impl std::fmt::Display for JsString {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "")
+        write!(f, "{}", self.0)
     }
 }
 
 impl From<JsString> for String {
-    fn from(_: JsString) -> Self {
-        String::new()
+    fn from(s: JsString) -> Self {
+        s.0
     }
 }
 

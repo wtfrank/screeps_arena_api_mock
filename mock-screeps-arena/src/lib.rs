@@ -310,8 +310,24 @@ pub mod game {
             pub fn used_heap_size(&self) -> u32 { self.used_heap_size }
         }
 
-        pub fn get_ticks() -> u32 { 1 }
-        pub fn get_cpu_time() -> u32 { 0 }
+        pub fn get_ticks() -> u32 {
+            unsafe {
+                if let Some(ref iface) = crate::ffi::HOST_INTERFACE {
+                    (iface.get_ticks)()
+                } else {
+                    1
+                }
+            }
+        }
+        pub fn get_cpu_time() -> u32 {
+            unsafe {
+                if let Some(ref iface) = crate::ffi::HOST_INTERFACE {
+                    (iface.get_cpu_time)()
+                } else {
+                    0
+                }
+            }
+        }
         pub fn get_heap_statistics() -> HeapStatistics {
             HeapStatistics {
                 total_heap_size: 0,
@@ -335,10 +351,72 @@ pub mod game {
                 tick_limit: 2000,
             }
         }
-        pub fn get_object_by_id<T>(_id: &str) -> Option<T> { None }
-        pub fn get_objects() -> Vec<crate::objects::GameObject> { Vec::new() }
-        pub fn get_objects_by_prototype<T>(_prototype: T) -> Vec<T::Item> where T: crate::prototypes::PrototypeConstant { Vec::new() }
-        pub fn get_terrain_at(_pos: &wasm_bindgen::JsValue) -> crate::constants::Terrain { crate::constants::Terrain::Plain }
+        pub fn get_objects() -> Vec<crate::objects::GameObject> {
+            let mut all = Vec::new();
+            all.extend(get_objects_by_prototype(crate::prototypes::CREEP).into_iter().map(|o| o.base));
+            all.extend(get_objects_by_prototype(crate::prototypes::STRUCTURE_SPAWN).into_iter().map(|o| o.base));
+            all.extend(get_objects_by_prototype(crate::prototypes::STRUCTURE_TOWER).into_iter().map(|o| o.base));
+            all.extend(get_objects_by_prototype(crate::prototypes::STRUCTURE_EXTENSION).into_iter().map(|o| o.base));
+            all.extend(get_objects_by_prototype(crate::prototypes::STRUCTURE_RAMPART).into_iter().map(|o| o.base));
+            all.extend(get_objects_by_prototype(crate::prototypes::STRUCTURE_CONTAINER).into_iter().map(|o| o.base));
+            all.extend(get_objects_by_prototype(crate::prototypes::STRUCTURE_ROAD).into_iter().map(|o| o.base));
+            all.extend(get_objects_by_prototype(crate::prototypes::STRUCTURE_WALL).into_iter().map(|o| o.base));
+            all.extend(get_objects_by_prototype(crate::prototypes::RESOURCE).into_iter().map(|o| o.base));
+            all.extend(get_objects_by_prototype(crate::prototypes::SOURCE).into_iter().map(|o| o.base));
+            all.extend(get_objects_by_prototype(crate::prototypes::FLAG).into_iter().map(|o| o.base));
+            all.extend(get_objects_by_prototype(crate::prototypes::SCORE_COLLECTOR).into_iter().map(|o| o.base));
+            all.extend(get_objects_by_prototype(crate::prototypes::BONUS_FLAG).into_iter().map(|o| o.base));
+            all.extend(get_objects_by_prototype(crate::prototypes::AREA_EFFECT).into_iter().map(|o| o.base));
+            all.extend(get_objects_by_prototype(crate::prototypes::CONSTRUCTION_SITE).into_iter().map(|o| o.base));
+            all
+        }
+
+        pub fn get_object_by_id<T>(id: &str, prototype: T) -> Option<T::Item>
+        where
+            T: crate::prototypes::PrototypeConstant,
+            T::Item: Clone + AsRef<crate::objects::GameObject>,
+        {
+            let items = get_objects_by_prototype(prototype);
+            items.into_iter().find(|item| item.as_ref().id == id)
+        }
+
+        pub fn get_objects_by_prototype<T>(_prototype: T) -> Vec<T::Item>
+        where
+            T: crate::prototypes::PrototypeConstant,
+            T::Item: Clone,
+        {
+            unsafe {
+                if let Some(ref iface) = crate::ffi::HOST_INTERFACE {
+                    let mut ptr: *const std::ffi::c_void = std::ptr::null();
+                    let mut len: usize = 0;
+                    (iface.get_objects)(T::ID, &mut ptr, &mut len);
+                    if !ptr.is_null() && len > 0 {
+                        let slice = std::slice::from_raw_parts(ptr as *const T::Item, len);
+                        return slice.to_vec();
+                    }
+                }
+            }
+            Vec::new()
+        }
+
+        pub fn get_terrain_at(pos: &wasm_bindgen::JsValue) -> crate::constants::Terrain {
+            // In the native simulator environment without a V8 runtime,
+            // pos will be a pointer or encoded value. If pos.as_f64() contains a coordinate, extract it.
+            let (x, y) = (0, 0);
+            unsafe {
+                if let Some(ref iface) = crate::ffi::HOST_INTERFACE {
+                    let code = (iface.get_terrain_at)(x, y);
+                    match code {
+                        1 => crate::constants::Terrain::Wall,
+                        2 => crate::constants::Terrain::Swamp,
+                        _ => crate::constants::Terrain::Plain,
+                    }
+                } else {
+                    crate::constants::Terrain::Plain
+                }
+            }
+        }
+
         pub fn create_construction_site(_x: u8, _y: u8, _structure_type: &js_sys::Object) -> Result<crate::objects::ConstructionSite, crate::constants::ReturnCode> { Err(crate::constants::ReturnCode::Error) }
     }
 
@@ -462,7 +540,7 @@ pub mod objects {
     use crate::constants::{Part, ResourceType, ReturnCode, Direction};
     use js_sys::{JsString, Object};
 
-    #[derive(Clone, Debug, Default)]
+    #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
     pub struct GameObject {
         pub id: String,
         pub x: u8,
@@ -491,7 +569,7 @@ pub mod objects {
 
     macro_rules! define_mock_struct {
         ($name:ident, { $($field_name:ident : $field_type:ty),* $(,)? }) => {
-            #[derive(Clone, Debug)]
+            #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
             pub struct $name {
                 pub base: GameObject,
                 $( pub $field_name : $field_type, )*
@@ -552,7 +630,7 @@ pub mod objects {
         }
     }
 
-    #[derive(Clone, Debug)]
+    #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
     pub struct Creep {
         pub base: GameObject,
         pub fatigue: u32,
@@ -831,6 +909,30 @@ pub mod prototypes {
     impl PrototypeConstant for CONSTRUCTION_SITE {
         type Item = crate::objects::ConstructionSite;
         const ID: u32 = 15;
+    }
+
+    pub struct STRUCTURE_ROAD;
+    impl PrototypeConstant for STRUCTURE_ROAD {
+        type Item = crate::objects::StructureRoad;
+        const ID: u32 = 7;
+    }
+
+    pub struct SCORE_COLLECTOR;
+    impl PrototypeConstant for SCORE_COLLECTOR {
+        type Item = crate::objects::ScoreCollector;
+        const ID: u32 = 12;
+    }
+
+    pub struct BONUS_FLAG;
+    impl PrototypeConstant for BONUS_FLAG {
+        type Item = crate::objects::BonusFlag;
+        const ID: u32 = 13;
+    }
+
+    pub struct AREA_EFFECT;
+    impl PrototypeConstant for AREA_EFFECT {
+        type Item = crate::objects::AreaEffect;
+        const ID: u32 = 14;
     }
 
     pub use self::CREEP as CREEP_PROTOTYPE;

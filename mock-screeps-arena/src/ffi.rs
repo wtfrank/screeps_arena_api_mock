@@ -68,7 +68,7 @@ pub struct HostInterface {
 
 pub static mut HOST_INTERFACE: Option<HostInterface> = None;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn set_host_interface(interface: HostInterface) {
     unsafe {
         HOST_INTERFACE = Some(interface);

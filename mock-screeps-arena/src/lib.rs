@@ -791,7 +791,31 @@ pub mod objects {
         pub fn hits_max(&self) -> u32 { self.hits_max }
         pub fn my(&self) -> bool { self.my }
         pub fn body(&self) -> Vec<BodyPart> { Vec::new() }
-        pub fn move_direction(&self, _direction: Direction) -> ReturnCode { ReturnCode::Ok }
+        pub fn move_direction(&self, direction: Direction) -> ReturnCode {
+            if !self.my {
+                return ReturnCode::NotOwner;
+            }
+            if self.spawning {
+                return ReturnCode::Busy;
+            }
+            if self.fatigue > 0 {
+                return ReturnCode::Tired;
+            }
+
+            unsafe {
+                if let Some(ref iface) = crate::ffi::HOST_INTERFACE {
+                    let actor_c = std::ffi::CString::new(self.base.id.clone()).unwrap();
+                    (iface.queue_action)(
+                        actor_c.as_ptr(),
+                        crate::ffi::ActionId::Move as u32,
+                        std::ptr::null(),
+                        direction as usize,
+                        0,
+                    );
+                }
+            }
+            ReturnCode::Ok
+        }
         pub fn move_to(&self, _target: &impl HasPosition, _options: Option<&Object>) -> ReturnCode { ReturnCode::Ok }
         pub fn attack(&self, _target: &impl Attackable) -> ReturnCode { ReturnCode::Ok }
         pub fn ranged_attack(&self, _target: &impl Attackable) -> ReturnCode { ReturnCode::Ok }

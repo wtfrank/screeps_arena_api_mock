@@ -633,13 +633,16 @@ pub mod objects {
         pub fn remaining_time(&self) -> u32 { self.remaining_time }
     }
 
-    define_mock_struct!(StructureSpawn, { hits: u32, hits_max: u32, energy: u32, energy_max: u32, my: Option<bool>, spawning: Option<Spawning> });
+    define_mock_struct!(StructureSpawn, { hits: u32, hits_max: u32, energy: u32, energy_max: u32, my: Option<bool>, spawning: Option<Spawning>, next_id: String });
 
     impl OwnedStructureProperties for StructureSpawn { fn my(&self) -> Option<bool> { self.my } }
 
     impl StructureSpawn {
         pub fn spawning(&self) -> Option<Spawning> {
             self.spawning.clone()
+        }
+        pub fn next_id(&self) -> String {
+            self.next_id.clone()
         }
 
         pub fn spawn_creep(&self, body: &[Part]) -> Result<Creep, ReturnCode> {
@@ -711,8 +714,8 @@ pub mod objects {
                 }
             }
 
-            // Return mock Creep instance representing the spawning creep
-            let new_creep_id = format!("creep_spawned_{}", self.base.id);
+            // Return mock Creep instance representing the spawning creep using pre-assigned next_id
+            let new_creep_id = self.next_id.clone();
             Ok(Creep {
                 base: GameObject {
                     id: new_creep_id,
@@ -723,6 +726,7 @@ pub mod objects {
                 hits: body.len() as u32 * 100,
                 hits_max: body.len() as u32 * 100,
                 my: true,
+                spawning: true,
             })
         }
     }
@@ -734,6 +738,7 @@ pub mod objects {
         pub hits: u32,
         pub hits_max: u32,
         pub my: bool,
+        pub spawning: bool,
     }
 
     impl HasPosition for Creep {
@@ -787,7 +792,7 @@ pub mod objects {
         pub fn harvest(&self, _source: &Source) -> ReturnCode { ReturnCode::Ok }
         pub fn transfer(&self, _target: &impl Transferable, _resource_type: ResourceType, _amount: Option<u32>) -> ReturnCode { ReturnCode::Ok }
         pub fn withdraw(&self, _target: &impl Withdrawable, _resource_type: ResourceType, _amount: Option<u32>) -> ReturnCode { ReturnCode::Ok }
-        pub fn spawning(&self) -> bool { false }
+        pub fn spawning(&self) -> bool { self.spawning }
         pub fn pull(&self, _target: &Creep) -> ReturnCode { ReturnCode::Ok }
     }
 

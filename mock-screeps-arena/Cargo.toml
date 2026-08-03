@@ -12,6 +12,7 @@ enum-iterator = "0.6"
 serde = { version = "1", features = ["derive"] }
 wasm-bindgen = { path = "../mock-wasm-bindgen" }
 js-sys = { path = "../mock-js-sys" }
+serde-wasm-bindgen = { path = "../mock-serde-wasm-bindgen" }
 
 [features]
 default = []

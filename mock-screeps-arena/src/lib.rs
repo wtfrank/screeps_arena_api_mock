@@ -649,29 +649,36 @@ pub mod game {
                     flee: None,
                 }
             }
-            pub fn cost_matrix(&self, _cm: &CostMatrix) -> &Self {
+            pub fn cost_matrix(mut self, cm: &CostMatrix) -> Self {
+                self.cost_matrix = Some(cm.clone());
                 self
             }
-            pub fn max_ops(&self, _val: u32) -> &Self {
+            pub fn max_ops(mut self, val: u32) -> Self {
+                self.max_ops = Some(val);
                 self
             }
-            pub fn heuristic_weight(&self, _val: f64) -> &Self {
+            pub fn heuristic_weight(mut self, val: f64) -> Self {
+                self.heuristic_weight = Some(val);
                 self
             }
-            pub fn max_rooms(&self, _val: u32) -> &Self {
+            pub fn max_rooms(mut self, val: u32) -> Self {
+                self.max_rooms = Some(val);
                 self
             }
-            pub fn plain_cost(&self, _val: u8) -> &Self {
+            pub fn plain_cost(mut self, val: u8) -> Self {
+                self.plain_cost = Some(val);
                 self
             }
-            pub fn swamp_cost(&self, _val: u8) -> &Self {
+            pub fn swamp_cost(mut self, val: u8) -> Self {
+                self.swamp_cost = Some(val);
                 self
             }
-            pub fn flee(&self, _val: bool) -> &Self {
+            pub fn flee(mut self, val: bool) -> Self {
+                self.flee = Some(val);
                 self
             }
             pub fn get_cost_matrix(&self) -> CostMatrix {
-                CostMatrix
+                self.cost_matrix.clone().unwrap_or_else(CostMatrix::new)
             }
         }
 
@@ -680,16 +687,28 @@ pub mod game {
             pub cost_matrix: Option<CostMatrix>,
         }
 
-        #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-        pub struct CostMatrix;
+        #[derive(Debug, Clone, Serialize, Deserialize)]
+        pub struct CostMatrix {
+            pub bits: Vec<u8>,
+        }
 
         impl CostMatrix {
             pub fn new() -> Self {
-                CostMatrix
+                CostMatrix {
+                    bits: vec![0; 10000],
+                }
             }
-            pub fn set(&self, _x: u8, _y: u8, _cost: u8) {}
-            pub fn get(&self, _x: u8, _y: u8) -> u8 {
-                0
+            pub fn set(&mut self, x: u8, y: u8, cost: u8) {
+                if (x as usize) < 100 && (y as usize) < 100 {
+                    self.bits[(y as usize) * 100 + (x as usize)] = cost;
+                }
+            }
+            pub fn get(&self, x: u8, y: u8) -> u8 {
+                if (x as usize) < 100 && (y as usize) < 100 && !self.bits.is_empty() {
+                    self.bits[(y as usize) * 100 + (x as usize)]
+                } else {
+                    0
+                }
             }
         }
 
@@ -710,16 +729,211 @@ pub mod game {
             }
         }
 
+        #[derive(Debug, Clone, Serialize, Deserialize)]
+        struct GoalSpec {
+            pub pos: Position,
+            pub range: u8,
+        }
+
         pub fn search_path(
-            _origin: &crate::objects::GameObject,
-            _goal: &wasm_bindgen::JsValue,
-            _options: Option<&SearchPathOptions>,
+            origin: &crate::objects::GameObject,
+            goal: &wasm_bindgen::JsValue,
+            options: Option<&SearchPathOptions>,
         ) -> SearchResults {
-            SearchResults {
-                path: Vec::new(),
-                ops: 0,
+            use std::collections::{BinaryHeap, HashMap, HashSet};
+            use std::cmp::Ordering;
+            use crate::traits::HasPosition;
+
+            let start = origin.pos();
+            let mut goals: Vec<GoalSpec> = Vec::new();
+
+            if let Ok(single) = serde_wasm_bindgen::from_value::<GoalSpec>(goal.clone()) {
+                goals.push(single);
+            } else if let Ok(multi) = serde_wasm_bindgen::from_value::<Vec<GoalSpec>>(goal.clone()) {
+                goals = multi;
+            }
+
+            if goals.is_empty() {
+                return SearchResults {
+                    path: Vec::new(),
+                    ops: 0,
+                    cost: 0,
+                    incomplete: true,
+                };
+            }
+
+            let plain_cost = options.and_then(|o| o.plain_cost).unwrap_or(2) as u32;
+            let swamp_cost = options.and_then(|o| o.swamp_cost).unwrap_or(10) as u32;
+            let max_ops = options.and_then(|o| o.max_ops).unwrap_or(2000);
+            let flee = options.and_then(|o| o.flee).unwrap_or(false);
+            let custom_cm = options.and_then(|o| o.cost_matrix.as_ref());
+
+            let is_at_goal = |pos: Position| -> bool {
+                for g in &goals {
+                    let dx = pos.x.abs_diff(g.pos.x);
+                    let dy = pos.y.abs_diff(g.pos.y);
+                    let range = dx.max(dy);
+                    if flee {
+                        if range >= g.range {
+                            return true;
+                        }
+                    } else {
+                        if range <= g.range {
+                            return true;
+                        }
+                    }
+                }
+                false
+            };
+
+            if is_at_goal(start) {
+                return SearchResults {
+                    path: Vec::new(),
+                    ops: 0,
+                    cost: 0,
+                    incomplete: false,
+                };
+            }
+
+            let heuristic = |pos: Position| -> u32 {
+                let mut min_h = u32::MAX;
+                for g in &goals {
+                    let dx = pos.x.abs_diff(g.pos.x) as u32;
+                    let dy = pos.y.abs_diff(g.pos.y) as u32;
+                    let dist = dx.max(dy);
+                    if dist < min_h {
+                        min_h = dist;
+                    }
+                }
+                min_h
+            };
+
+            #[derive(Copy, Clone, Eq, PartialEq)]
+            struct State {
+                cost: u32,
+                estimated_total: u32,
+                pos: Position,
+            }
+
+            impl Ord for State {
+                fn cmp(&self, other: &Self) -> Ordering {
+                    other.estimated_total.cmp(&self.estimated_total)
+                        .then_with(|| other.cost.cmp(&self.cost))
+                }
+            }
+
+            impl PartialOrd for State {
+                fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+                    Some(self.cmp(other))
+                }
+            }
+
+            let mut open_set = BinaryHeap::new();
+            let mut g_score: HashMap<Position, u32> = HashMap::new();
+            let mut came_from: HashMap<Position, Position> = HashMap::new();
+
+            g_score.insert(start, 0);
+            open_set.push(State {
                 cost: 0,
-                incomplete: true,
+                estimated_total: heuristic(start),
+                pos: start,
+            });
+
+            let mut ops = 0;
+            let mut best_target: Option<Position> = None;
+
+            while let Some(State { cost, pos, .. }) = open_set.pop() {
+                ops += 1;
+                if ops > max_ops {
+                    break;
+                }
+
+                if is_at_goal(pos) {
+                    best_target = Some(pos);
+                    break;
+                }
+
+                if let Some(&recorded_g) = g_score.get(&pos) {
+                    if cost > recorded_g {
+                        continue;
+                    }
+                }
+
+                // Check 8-way adjacent directions
+                for dx in [-1i32, 0, 1] {
+                    for dy in [-1i32, 0, 1] {
+                        if dx == 0 && dy == 0 {
+                            continue;
+                        }
+                        let nx = pos.x as i32 + dx;
+                        let ny = pos.y as i32 + dy;
+                        if nx < 0 || nx >= 100 || ny < 0 || ny >= 100 {
+                            continue;
+                        }
+                        let neighbor = Position { x: nx as u8, y: ny as u8 };
+
+                        // Tile cost calculation
+                        let tile_cost = if let Some(cm) = custom_cm {
+                            let custom_c = cm.get(neighbor.x, neighbor.y);
+                            if custom_c == 255 {
+                                continue; // Impassable
+                            } else if custom_c > 0 {
+                                custom_c as u32
+                            } else {
+                                match crate::game::utils::get_terrain_at(&serde_wasm_bindgen::to_value(&neighbor).unwrap()) {
+                                    crate::constants::Terrain::Wall => continue,
+                                    crate::constants::Terrain::Swamp => swamp_cost,
+                                    _ => plain_cost,
+                                }
+                            }
+                        } else {
+                            match crate::game::utils::get_terrain_at(&serde_wasm_bindgen::to_value(&neighbor).unwrap()) {
+                                crate::constants::Terrain::Wall => continue,
+                                crate::constants::Terrain::Swamp => swamp_cost,
+                                _ => plain_cost,
+                            }
+                        };
+
+                        let tentative_g = cost + tile_cost;
+                        if tentative_g < *g_score.get(&neighbor).unwrap_or(&u32::MAX) {
+                            came_from.insert(neighbor, pos);
+                            g_score.insert(neighbor, tentative_g);
+                            open_set.push(State {
+                                cost: tentative_g,
+                                estimated_total: tentative_g + heuristic(neighbor),
+                                pos: neighbor,
+                            });
+                        }
+                    }
+                }
+            }
+
+            if let Some(target) = best_target {
+                let mut path = Vec::new();
+                let mut curr = target;
+                while curr != start {
+                    path.push(curr);
+                    if let Some(&prev) = came_from.get(&curr) {
+                        curr = prev;
+                    } else {
+                        break;
+                    }
+                }
+                path.reverse();
+                let path_cost = *g_score.get(&target).unwrap_or(&0);
+                SearchResults {
+                    path,
+                    ops,
+                    cost: path_cost,
+                    incomplete: false,
+                }
+            } else {
+                SearchResults {
+                    path: Vec::new(),
+                    ops,
+                    cost: 0,
+                    incomplete: true,
+                }
             }
         }
     }

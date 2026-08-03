@@ -3,6 +3,8 @@ pub mod ffi;
 pub mod constants {
     use serde::{Serialize, Deserialize};
 
+    pub const SPAWN_RANGE: u32 = 20;
+
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
     pub enum Direction {
         Top = 1,
@@ -660,10 +662,11 @@ pub mod objects {
 
             let cost: u32 = body.iter().map(|p| p.cost()).sum();
 
-            // Calculate total energy available in friendly spawns & extensions
+            // Calculate total energy available in friendly spawns & extensions within SPAWN_RANGE
             let (spawn_energy, extension_energy) = unsafe {
                 let mut total_s = 0;
                 let mut total_e = 0;
+                let range = crate::constants::SPAWN_RANGE as u8;
                 if let Some(ref iface) = crate::ffi::HOST_INTERFACE {
                     let mut ptr: *const std::ffi::c_void = std::ptr::null();
                     let mut len: usize = 0;
@@ -671,7 +674,10 @@ pub mod objects {
                     if !ptr.is_null() && len > 0 {
                         let slice = std::slice::from_raw_parts(ptr as *const StructureSpawn, len);
                         for s in slice {
-                            if s.my == Some(true) {
+                            if s.my == Some(true)
+                                && s.base.x.abs_diff(self.base.x) <= range
+                                && s.base.y.abs_diff(self.base.y) <= range
+                            {
                                 total_s += s.energy;
                             }
                         }
@@ -682,7 +688,10 @@ pub mod objects {
                     if !ptr.is_null() && len > 0 {
                         let slice = std::slice::from_raw_parts(ptr as *const StructureExtension, len);
                         for e in slice {
-                            if e.my == Some(true) {
+                            if e.my == Some(true)
+                                && e.base.x.abs_diff(self.base.x) <= range
+                                && e.base.y.abs_diff(self.base.y) <= range
+                            {
                                 total_e += e.energy;
                             }
                         }

@@ -1274,7 +1274,7 @@ pub mod objects {
     impl Attackable for StructureRampart {}
     impl Attackable for StructureWall {}
 
-    #[derive(Clone, Debug)]
+    #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
     pub struct Structure {
         pub base: GameObject,
     }
@@ -1320,9 +1320,10 @@ pub mod objects {
         }
     }
 
-    #[derive(Clone, Debug)]
+    #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
     pub struct OwnedStructure {
         pub base: Structure,
+        pub my: Option<bool>,
     }
     impl HasPosition for OwnedStructure {
         fn pos(&self) -> Position {
@@ -1367,7 +1368,7 @@ pub mod objects {
     }
     impl OwnedStructureProperties for OwnedStructure {
         fn my(&self) -> Option<bool> {
-            Some(true)
+            self.my
         }
     }
     impl Attackable for OwnedStructure {}

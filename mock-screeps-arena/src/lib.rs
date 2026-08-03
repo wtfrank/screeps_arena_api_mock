@@ -596,7 +596,6 @@ pub mod objects {
         };
     }
 
-    define_mock_struct!(StructureSpawn, { hits: u32, hits_max: u32, energy: u32, energy_max: u32, my: Option<bool> });
     define_mock_struct!(StructureTower, { hits: u32, hits_max: u32, energy: u32, energy_max: u32, my: Option<bool> });
     define_mock_struct!(StructureExtension, { hits: u32, hits_max: u32, energy: u32, energy_max: u32, my: Option<bool> });
     define_mock_struct!(StructureRampart, { hits: u32, hits_max: u32, my: Option<bool> });
@@ -619,14 +618,112 @@ pub mod objects {
     impl HasHits for StructureRoad { fn hits(&self) -> u32 { self.hits } fn hits_max(&self) -> u32 { self.hits_max } }
     impl HasHits for StructureWall { fn hits(&self) -> u32 { self.hits } fn hits_max(&self) -> u32 { self.hits_max } }
 
-    impl OwnedStructureProperties for StructureSpawn { fn my(&self) -> Option<bool> { self.my } }
     impl OwnedStructureProperties for StructureTower { fn my(&self) -> Option<bool> { self.my } }
     impl OwnedStructureProperties for StructureExtension { fn my(&self) -> Option<bool> { self.my } }
     impl OwnedStructureProperties for StructureRampart { fn my(&self) -> Option<bool> { self.my } }
 
+    #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+    pub struct Spawning {
+        pub need_time: u32,
+        pub remaining_time: u32,
+    }
+
+    impl Spawning {
+        pub fn need_time(&self) -> u32 { self.need_time }
+        pub fn remaining_time(&self) -> u32 { self.remaining_time }
+    }
+
+    define_mock_struct!(StructureSpawn, { hits: u32, hits_max: u32, energy: u32, energy_max: u32, my: Option<bool>, spawning: Option<Spawning> });
+
+    impl OwnedStructureProperties for StructureSpawn { fn my(&self) -> Option<bool> { self.my } }
+
     impl StructureSpawn {
-        pub fn spawn_creep(&self, _body: &[Part]) -> Result<Creep, ReturnCode> {
-            Err(ReturnCode::Error)
+        pub fn spawning(&self) -> Option<Spawning> {
+            self.spawning.clone()
+        }
+
+        pub fn spawn_creep(&self, body: &[Part]) -> Result<Creep, ReturnCode> {
+            use crate::prototypes::PrototypeConstant;
+
+            if self.my != Some(true) {
+                return Err(ReturnCode::NotOwner);
+            }
+            if self.spawning.is_some() {
+                return Err(ReturnCode::Busy);
+            }
+            if body.is_empty() || body.len() > 50 {
+                return Err(ReturnCode::InvalidArgs);
+            }
+
+            let cost: u32 = body.iter().map(|p| p.cost()).sum();
+
+            // Calculate total energy available in friendly spawns & extensions
+            let (spawn_energy, extension_energy) = unsafe {
+                let mut total_s = 0;
+                let mut total_e = 0;
+                if let Some(ref iface) = crate::ffi::HOST_INTERFACE {
+                    let mut ptr: *const std::ffi::c_void = std::ptr::null();
+                    let mut len: usize = 0;
+                    (iface.get_objects)(crate::prototypes::STRUCTURE_SPAWN::ID, &mut ptr, &mut len);
+                    if !ptr.is_null() && len > 0 {
+                        let slice = std::slice::from_raw_parts(ptr as *const StructureSpawn, len);
+                        for s in slice {
+                            if s.my == Some(true) {
+                                total_s += s.energy;
+                            }
+                        }
+                    }
+                    ptr = std::ptr::null();
+                    len = 0;
+                    (iface.get_objects)(crate::prototypes::STRUCTURE_EXTENSION::ID, &mut ptr, &mut len);
+                    if !ptr.is_null() && len > 0 {
+                        let slice = std::slice::from_raw_parts(ptr as *const StructureExtension, len);
+                        for e in slice {
+                            if e.my == Some(true) {
+                                total_e += e.energy;
+                            }
+                        }
+                    }
+                }
+                (total_s, total_e)
+            };
+
+            if spawn_energy + extension_energy < cost {
+                return Err(ReturnCode::NotEnough);
+            }
+
+            // Encode body parts into bitfield / packed uint for FFI payload
+            let mut encoded_body: usize = 0;
+            for (i, part) in body.iter().enumerate().take(16) {
+                encoded_body |= ((*part as usize) & 0xF) << (i * 4);
+            }
+
+            unsafe {
+                if let Some(ref iface) = crate::ffi::HOST_INTERFACE {
+                    let actor_c = std::ffi::CString::new(self.base.id.clone()).unwrap();
+                    (iface.queue_action)(
+                        actor_c.as_ptr(),
+                        crate::ffi::ActionId::SpawnCreep as u32,
+                        std::ptr::null(),
+                        body.len(),
+                        encoded_body,
+                    );
+                }
+            }
+
+            // Return mock Creep instance representing the spawning creep
+            let new_creep_id = format!("creep_spawned_{}", self.base.id);
+            Ok(Creep {
+                base: GameObject {
+                    id: new_creep_id,
+                    x: self.base.x,
+                    y: self.base.y,
+                },
+                fatigue: 0,
+                hits: body.len() as u32 * 100,
+                hits_max: body.len() as u32 * 100,
+                my: true,
+            })
         }
     }
 

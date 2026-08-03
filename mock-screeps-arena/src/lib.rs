@@ -1,7 +1,7 @@
 pub mod ffi;
 
 pub mod constants {
-    use serde::{Serialize, Deserialize};
+    use serde::{Deserialize, Serialize};
 
     pub const SPAWN_RANGE: u32 = 20;
 
@@ -146,11 +146,13 @@ pub mod constants {
     pub const TOWER_POWER_HEAL: u32 = 100;
     pub const TOWER_RANGE: u32 = 50;
 
-    pub use crate::prototypes;
     pub use self::extra::{ROOM_HEIGHT, ROOM_WIDTH};
+    pub use crate::prototypes;
 
     pub mod numbers {
-        pub use super::{ATTACK_POWER, HEAL_POWER, RANGED_ATTACK_POWER, CARRY_CAPACITY, DISMANTLE_POWER};
+        pub use super::{
+            ATTACK_POWER, CARRY_CAPACITY, DISMANTLE_POWER, HEAL_POWER, RANGED_ATTACK_POWER,
+        };
     }
 
     pub mod extra {
@@ -172,8 +174,8 @@ pub mod enums {
 pub mod traits {
     use crate::game::pathfinder::Position;
     use crate::objects::{GameObject, Store};
-    use wasm_bindgen::JsCast;
     use js_sys::{Array, JsString, Object};
+    use wasm_bindgen::JsCast;
 
     pub trait HasPosition {
         fn pos(&self) -> Position;
@@ -205,11 +207,38 @@ pub mod traits {
         fn x(&self) -> u8;
         fn y(&self) -> u8;
         fn ticks_to_decay(&self) -> Option<u32>;
-        fn find_path_to(&self, _pos: &Object, _options: Option<&crate::game::pathfinder::FindPathOptions>) -> Array { Array }
-        fn find_in_range<T>(&self, _positions: &[T], _range: u8) -> Vec<T> where T: HasPosition + JsCast { Vec::new() }
-        fn find_closest_by_range<T>(&self, _positions: &[T]) -> Option<T> where T: HasPosition + JsCast { None }
-        fn find_closest_by_path<T>(&self, _positions: &[T], _options: Option<&crate::game::pathfinder::FindPathOptions>) -> Option<T> where T: HasPosition + JsCast { None }
-        fn get_range_to(&self, _pos: &Object) -> u8 { 0 }
+        fn find_path_to(
+            &self,
+            _pos: &Object,
+            _options: Option<&crate::game::pathfinder::FindPathOptions>,
+        ) -> Array {
+            Array
+        }
+        fn find_in_range<T>(&self, _positions: &[T], _range: u8) -> Vec<T>
+        where
+            T: HasPosition + JsCast,
+        {
+            Vec::new()
+        }
+        fn find_closest_by_range<T>(&self, _positions: &[T]) -> Option<T>
+        where
+            T: HasPosition + JsCast,
+        {
+            None
+        }
+        fn find_closest_by_path<T>(
+            &self,
+            _positions: &[T],
+            _options: Option<&crate::game::pathfinder::FindPathOptions>,
+        ) -> Option<T>
+        where
+            T: HasPosition + JsCast,
+        {
+            None
+        }
+        fn get_range_to(&self, _pos: &Object) -> u8 {
+            0
+        }
     }
 
     pub trait OwnedStructureProperties {
@@ -222,7 +251,10 @@ pub mod traits {
 }
 
 pub mod game {
-    pub use self::utils::{arena_info, get_ticks, get_cpu_time, get_heap_statistics, get_object_by_id, get_objects, get_objects_by_prototype, get_terrain_at, create_construction_site};
+    pub use self::utils::{
+        arena_info, create_construction_site, get_cpu_time, get_heap_statistics, get_object_by_id,
+        get_objects, get_objects_by_prototype, get_terrain_at, get_ticks,
+    };
 
     pub mod visual {
         use js_sys::Object;
@@ -237,9 +269,15 @@ pub mod game {
                 self.align = Some(align);
                 self
             }
-            pub fn color(mut self, _color: &str) -> Self { self }
-            pub fn opacity(mut self, _opacity: f64) -> Self { self }
-            pub fn font_size(mut self, _font_size: f64) -> Self { self }
+            pub fn color(mut self, _color: &str) -> Self {
+                self
+            }
+            pub fn opacity(mut self, _opacity: f64) -> Self {
+                self
+            }
+            pub fn font_size(mut self, _font_size: f64) -> Self {
+                self
+            }
         }
 
         #[derive(Debug, Clone, Copy)]
@@ -253,12 +291,40 @@ pub mod game {
         pub struct Visual;
 
         impl Visual {
-            pub fn new(_layer: Option<u8>, _persistent: bool) -> Self { Visual }
-            pub fn text(&self, _text: &str, _pos: &VisualPosition, _style: Option<&TextStyle>) -> &Self { self }
-            pub fn line(&self, _from: &VisualPosition, _to: &VisualPosition, _style: Option<&Object>) -> &Self { self }
-            pub fn circle(&self, _pos: &VisualPosition, _style: Option<&Object>) -> &Self { self }
-            pub fn rect(&self, _pos: &VisualPosition, _w: f64, _h: f64, _style: Option<&Object>) -> &Self { self }
-            pub fn poly(&self, _points: &[VisualPosition], _style: Option<&Object>) -> &Self { self }
+            pub fn new(_layer: Option<u8>, _persistent: bool) -> Self {
+                Visual
+            }
+            pub fn text(
+                &self,
+                _text: &str,
+                _pos: &VisualPosition,
+                _style: Option<&TextStyle>,
+            ) -> &Self {
+                self
+            }
+            pub fn line(
+                &self,
+                _from: &VisualPosition,
+                _to: &VisualPosition,
+                _style: Option<&Object>,
+            ) -> &Self {
+                self
+            }
+            pub fn circle(&self, _pos: &VisualPosition, _style: Option<&Object>) -> &Self {
+                self
+            }
+            pub fn rect(
+                &self,
+                _pos: &VisualPosition,
+                _w: f64,
+                _h: f64,
+                _style: Option<&Object>,
+            ) -> &Self {
+                self
+            }
+            pub fn poly(&self, _points: &[VisualPosition], _style: Option<&Object>) -> &Self {
+                self
+            }
         }
 
         #[derive(Debug, Clone)]
@@ -277,13 +343,16 @@ pub mod game {
 
         impl From<crate::game::pathfinder::Position> for VisualPosition {
             fn from(pos: crate::game::pathfinder::Position) -> Self {
-                VisualPosition { x: pos.x as f32, y: pos.y as f32 }
+                VisualPosition {
+                    x: pos.x as f32,
+                    y: pos.y as f32,
+                }
             }
         }
     }
 
     pub mod utils {
-        use serde::{Serialize, Deserialize};
+        use serde::{Deserialize, Serialize};
 
         #[derive(Debug, Clone, Serialize, Deserialize)]
         pub struct ArenaInfo {
@@ -309,7 +378,9 @@ pub mod game {
         }
 
         impl HeapStatistics {
-            pub fn used_heap_size(&self) -> u32 { self.used_heap_size }
+            pub fn used_heap_size(&self) -> u32 {
+                self.used_heap_size
+            }
         }
 
         pub fn get_ticks() -> u32 {
@@ -355,21 +426,81 @@ pub mod game {
         }
         pub fn get_objects() -> Vec<crate::objects::GameObject> {
             let mut all = Vec::new();
-            all.extend(get_objects_by_prototype(crate::prototypes::CREEP).into_iter().map(|o| o.base));
-            all.extend(get_objects_by_prototype(crate::prototypes::STRUCTURE_SPAWN).into_iter().map(|o| o.base));
-            all.extend(get_objects_by_prototype(crate::prototypes::STRUCTURE_TOWER).into_iter().map(|o| o.base));
-            all.extend(get_objects_by_prototype(crate::prototypes::STRUCTURE_EXTENSION).into_iter().map(|o| o.base));
-            all.extend(get_objects_by_prototype(crate::prototypes::STRUCTURE_RAMPART).into_iter().map(|o| o.base));
-            all.extend(get_objects_by_prototype(crate::prototypes::STRUCTURE_CONTAINER).into_iter().map(|o| o.base));
-            all.extend(get_objects_by_prototype(crate::prototypes::STRUCTURE_ROAD).into_iter().map(|o| o.base));
-            all.extend(get_objects_by_prototype(crate::prototypes::STRUCTURE_WALL).into_iter().map(|o| o.base));
-            all.extend(get_objects_by_prototype(crate::prototypes::RESOURCE).into_iter().map(|o| o.base));
-            all.extend(get_objects_by_prototype(crate::prototypes::SOURCE).into_iter().map(|o| o.base));
-            all.extend(get_objects_by_prototype(crate::prototypes::FLAG).into_iter().map(|o| o.base));
-            all.extend(get_objects_by_prototype(crate::prototypes::SCORE_COLLECTOR).into_iter().map(|o| o.base));
-            all.extend(get_objects_by_prototype(crate::prototypes::BONUS_FLAG).into_iter().map(|o| o.base));
-            all.extend(get_objects_by_prototype(crate::prototypes::AREA_EFFECT).into_iter().map(|o| o.base));
-            all.extend(get_objects_by_prototype(crate::prototypes::CONSTRUCTION_SITE).into_iter().map(|o| o.base));
+            all.extend(
+                get_objects_by_prototype(crate::prototypes::CREEP)
+                    .into_iter()
+                    .map(|o| o.base),
+            );
+            all.extend(
+                get_objects_by_prototype(crate::prototypes::STRUCTURE_SPAWN)
+                    .into_iter()
+                    .map(|o| o.base),
+            );
+            all.extend(
+                get_objects_by_prototype(crate::prototypes::STRUCTURE_TOWER)
+                    .into_iter()
+                    .map(|o| o.base),
+            );
+            all.extend(
+                get_objects_by_prototype(crate::prototypes::STRUCTURE_EXTENSION)
+                    .into_iter()
+                    .map(|o| o.base),
+            );
+            all.extend(
+                get_objects_by_prototype(crate::prototypes::STRUCTURE_RAMPART)
+                    .into_iter()
+                    .map(|o| o.base),
+            );
+            all.extend(
+                get_objects_by_prototype(crate::prototypes::STRUCTURE_CONTAINER)
+                    .into_iter()
+                    .map(|o| o.base),
+            );
+            all.extend(
+                get_objects_by_prototype(crate::prototypes::STRUCTURE_ROAD)
+                    .into_iter()
+                    .map(|o| o.base),
+            );
+            all.extend(
+                get_objects_by_prototype(crate::prototypes::STRUCTURE_WALL)
+                    .into_iter()
+                    .map(|o| o.base),
+            );
+            all.extend(
+                get_objects_by_prototype(crate::prototypes::RESOURCE)
+                    .into_iter()
+                    .map(|o| o.base),
+            );
+            all.extend(
+                get_objects_by_prototype(crate::prototypes::SOURCE)
+                    .into_iter()
+                    .map(|o| o.base),
+            );
+            all.extend(
+                get_objects_by_prototype(crate::prototypes::FLAG)
+                    .into_iter()
+                    .map(|o| o.base),
+            );
+            all.extend(
+                get_objects_by_prototype(crate::prototypes::SCORE_COLLECTOR)
+                    .into_iter()
+                    .map(|o| o.base),
+            );
+            all.extend(
+                get_objects_by_prototype(crate::prototypes::BONUS_FLAG)
+                    .into_iter()
+                    .map(|o| o.base),
+            );
+            all.extend(
+                get_objects_by_prototype(crate::prototypes::AREA_EFFECT)
+                    .into_iter()
+                    .map(|o| o.base),
+            );
+            all.extend(
+                get_objects_by_prototype(crate::prototypes::CONSTRUCTION_SITE)
+                    .into_iter()
+                    .map(|o| o.base),
+            );
             all
         }
 
@@ -419,13 +550,19 @@ pub mod game {
             }
         }
 
-        pub fn create_construction_site(_x: u8, _y: u8, _structure_type: &js_sys::Object) -> Result<crate::objects::ConstructionSite, crate::constants::ReturnCode> { Err(crate::constants::ReturnCode::Error) }
+        pub fn create_construction_site(
+            _x: u8,
+            _y: u8,
+            _structure_type: &js_sys::Object,
+        ) -> Result<crate::objects::ConstructionSite, crate::constants::ReturnCode> {
+            Err(crate::constants::ReturnCode::Error)
+        }
     }
 
     pub mod pathfinder {
-        use serde::{Serialize, Deserialize};
-        use js_sys::{Array, Object};
         use crate::traits::HasPosition;
+        use js_sys::{Array, Object};
+        use serde::{Deserialize, Serialize};
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
         pub struct Position {
@@ -434,7 +571,9 @@ pub mod game {
         }
 
         impl HasPosition for Position {
-            fn pos(&self) -> Position { *self }
+            fn pos(&self) -> Position {
+                *self
+            }
         }
 
         impl std::fmt::Display for Position {
@@ -444,7 +583,9 @@ pub mod game {
         }
 
         impl From<Position> for Object {
-            fn from(_pos: Position) -> Self { Object }
+            fn from(_pos: Position) -> Self {
+                Object
+            }
         }
 
         impl std::ops::Add<crate::constants::Direction> for Position {
@@ -452,14 +593,34 @@ pub mod game {
             fn add(self, dir: crate::constants::Direction) -> Position {
                 let mut p = self;
                 match dir {
-                    crate::constants::Direction::Top => { p.y = p.y.saturating_sub(1); }
-                    crate::constants::Direction::TopRight => { p.x = p.x.saturating_add(1); p.y = p.y.saturating_sub(1); }
-                    crate::constants::Direction::Right => { p.x = p.x.saturating_add(1); }
-                    crate::constants::Direction::BottomRight => { p.x = p.x.saturating_add(1); p.y = p.y.saturating_add(1); }
-                    crate::constants::Direction::Bottom => { p.y = p.y.saturating_add(1); }
-                    crate::constants::Direction::BottomLeft => { p.x = p.x.saturating_sub(1); p.y = p.y.saturating_add(1); }
-                    crate::constants::Direction::Left => { p.x = p.x.saturating_sub(1); }
-                    crate::constants::Direction::TopLeft => { p.x = p.x.saturating_sub(1); p.y = p.y.saturating_sub(1); }
+                    crate::constants::Direction::Top => {
+                        p.y = p.y.saturating_sub(1);
+                    }
+                    crate::constants::Direction::TopRight => {
+                        p.x = p.x.saturating_add(1);
+                        p.y = p.y.saturating_sub(1);
+                    }
+                    crate::constants::Direction::Right => {
+                        p.x = p.x.saturating_add(1);
+                    }
+                    crate::constants::Direction::BottomRight => {
+                        p.x = p.x.saturating_add(1);
+                        p.y = p.y.saturating_add(1);
+                    }
+                    crate::constants::Direction::Bottom => {
+                        p.y = p.y.saturating_add(1);
+                    }
+                    crate::constants::Direction::BottomLeft => {
+                        p.x = p.x.saturating_sub(1);
+                        p.y = p.y.saturating_add(1);
+                    }
+                    crate::constants::Direction::Left => {
+                        p.x = p.x.saturating_sub(1);
+                    }
+                    crate::constants::Direction::TopLeft => {
+                        p.x = p.x.saturating_sub(1);
+                        p.y = p.y.saturating_sub(1);
+                    }
                 }
                 p
             }
@@ -488,14 +649,30 @@ pub mod game {
                     flee: None,
                 }
             }
-            pub fn cost_matrix(&self, _cm: &CostMatrix) -> &Self { self }
-            pub fn max_ops(&self, _val: u32) -> &Self { self }
-            pub fn heuristic_weight(&self, _val: f64) -> &Self { self }
-            pub fn max_rooms(&self, _val: u32) -> &Self { self }
-            pub fn plain_cost(&self, _val: u8) -> &Self { self }
-            pub fn swamp_cost(&self, _val: u8) -> &Self { self }
-            pub fn flee(&self, _val: bool) -> &Self { self }
-            pub fn get_cost_matrix(&self) -> CostMatrix { CostMatrix }
+            pub fn cost_matrix(&self, _cm: &CostMatrix) -> &Self {
+                self
+            }
+            pub fn max_ops(&self, _val: u32) -> &Self {
+                self
+            }
+            pub fn heuristic_weight(&self, _val: f64) -> &Self {
+                self
+            }
+            pub fn max_rooms(&self, _val: u32) -> &Self {
+                self
+            }
+            pub fn plain_cost(&self, _val: u8) -> &Self {
+                self
+            }
+            pub fn swamp_cost(&self, _val: u8) -> &Self {
+                self
+            }
+            pub fn flee(&self, _val: bool) -> &Self {
+                self
+            }
+            pub fn get_cost_matrix(&self) -> CostMatrix {
+                CostMatrix
+            }
         }
 
         #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -507,9 +684,13 @@ pub mod game {
         pub struct CostMatrix;
 
         impl CostMatrix {
-            pub fn new() -> Self { CostMatrix }
+            pub fn new() -> Self {
+                CostMatrix
+            }
             pub fn set(&self, _x: u8, _y: u8, _cost: u8) {}
-            pub fn get(&self, _x: u8, _y: u8) -> u8 { 0 }
+            pub fn get(&self, _x: u8, _y: u8) -> u8 {
+                0
+            }
         }
 
         #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -521,11 +702,19 @@ pub mod game {
         }
 
         impl SearchResults {
-            pub fn path(&self) -> Vec<Position> { self.path.clone() }
-            pub fn incomplete(&self) -> bool { self.incomplete }
+            pub fn path(&self) -> Vec<Position> {
+                self.path.clone()
+            }
+            pub fn incomplete(&self) -> bool {
+                self.incomplete
+            }
         }
 
-        pub fn search_path(_origin: &crate::objects::GameObject, _goal: &wasm_bindgen::JsValue, _options: Option<&SearchPathOptions>) -> SearchResults {
+        pub fn search_path(
+            _origin: &crate::objects::GameObject,
+            _goal: &wasm_bindgen::JsValue,
+            _options: Option<&SearchPathOptions>,
+        ) -> SearchResults {
             SearchResults {
                 path: Vec::new(),
                 ops: 0,
@@ -537,9 +726,9 @@ pub mod game {
 }
 
 pub mod objects {
+    use crate::constants::{Direction, Part, ResourceType, ReturnCode};
     use crate::game::pathfinder::Position;
     use crate::traits::*;
-    use crate::constants::{Part, ResourceType, ReturnCode, Direction};
     use js_sys::{JsString, Object};
 
     #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
@@ -550,23 +739,48 @@ pub mod objects {
     }
 
     impl GameObject {
-        pub fn exists(&self) -> bool { true }
-        pub fn id(&self) -> JsString { JsString(self.id.clone()) }
-        pub fn x(&self) -> u8 { self.x }
-        pub fn y(&self) -> u8 { self.y }
-        pub fn ticks_to_decay(&self) -> Option<u32> { None }
+        pub fn exists(&self) -> bool {
+            true
+        }
+        pub fn id(&self) -> JsString {
+            JsString(self.id.clone())
+        }
+        pub fn x(&self) -> u8 {
+            self.x
+        }
+        pub fn y(&self) -> u8 {
+            self.y
+        }
+        pub fn ticks_to_decay(&self) -> Option<u32> {
+            None
+        }
     }
 
     impl HasPosition for GameObject {
-        fn pos(&self) -> Position { Position { x: self.x, y: self.y } }
+        fn pos(&self) -> Position {
+            Position {
+                x: self.x,
+                y: self.y,
+            }
+        }
     }
 
     impl GameObjectProperties for GameObject {
-        fn exists(&self) -> bool { true }
-        fn id(&self) -> JsString { JsString(self.id.clone()) }
-        fn x(&self) -> u8 { self.x }
-        fn y(&self) -> u8 { self.y }
-        fn ticks_to_decay(&self) -> Option<u32> { None }
+        fn exists(&self) -> bool {
+            true
+        }
+        fn id(&self) -> JsString {
+            JsString(self.id.clone())
+        }
+        fn x(&self) -> u8 {
+            self.x
+        }
+        fn y(&self) -> u8 {
+            self.y
+        }
+        fn ticks_to_decay(&self) -> Option<u32> {
+            None
+        }
     }
 
     macro_rules! define_mock_struct {
@@ -612,17 +826,78 @@ pub mod objects {
     define_mock_struct!(BonusFlag, { my: Option<bool> });
     define_mock_struct!(AreaEffect, { effect_type: String });
 
-    impl HasHits for StructureSpawn { fn hits(&self) -> u32 { self.hits } fn hits_max(&self) -> u32 { self.hits_max } }
-    impl HasHits for StructureTower { fn hits(&self) -> u32 { self.hits } fn hits_max(&self) -> u32 { self.hits_max } }
-    impl HasHits for StructureExtension { fn hits(&self) -> u32 { self.hits } fn hits_max(&self) -> u32 { self.hits_max } }
-    impl HasHits for StructureRampart { fn hits(&self) -> u32 { self.hits } fn hits_max(&self) -> u32 { self.hits_max } }
-    impl HasHits for StructureContainer { fn hits(&self) -> u32 { self.hits } fn hits_max(&self) -> u32 { self.hits_max } }
-    impl HasHits for StructureRoad { fn hits(&self) -> u32 { self.hits } fn hits_max(&self) -> u32 { self.hits_max } }
-    impl HasHits for StructureWall { fn hits(&self) -> u32 { self.hits } fn hits_max(&self) -> u32 { self.hits_max } }
+    impl HasHits for StructureSpawn {
+        fn hits(&self) -> u32 {
+            self.hits
+        }
+        fn hits_max(&self) -> u32 {
+            self.hits_max
+        }
+    }
+    impl HasHits for StructureTower {
+        fn hits(&self) -> u32 {
+            self.hits
+        }
+        fn hits_max(&self) -> u32 {
+            self.hits_max
+        }
+    }
+    impl HasHits for StructureExtension {
+        fn hits(&self) -> u32 {
+            self.hits
+        }
+        fn hits_max(&self) -> u32 {
+            self.hits_max
+        }
+    }
+    impl HasHits for StructureRampart {
+        fn hits(&self) -> u32 {
+            self.hits
+        }
+        fn hits_max(&self) -> u32 {
+            self.hits_max
+        }
+    }
+    impl HasHits for StructureContainer {
+        fn hits(&self) -> u32 {
+            self.hits
+        }
+        fn hits_max(&self) -> u32 {
+            self.hits_max
+        }
+    }
+    impl HasHits for StructureRoad {
+        fn hits(&self) -> u32 {
+            self.hits
+        }
+        fn hits_max(&self) -> u32 {
+            self.hits_max
+        }
+    }
+    impl HasHits for StructureWall {
+        fn hits(&self) -> u32 {
+            self.hits
+        }
+        fn hits_max(&self) -> u32 {
+            self.hits_max
+        }
+    }
 
-    impl OwnedStructureProperties for StructureTower { fn my(&self) -> Option<bool> { self.my } }
-    impl OwnedStructureProperties for StructureExtension { fn my(&self) -> Option<bool> { self.my } }
-    impl OwnedStructureProperties for StructureRampart { fn my(&self) -> Option<bool> { self.my } }
+    impl OwnedStructureProperties for StructureTower {
+        fn my(&self) -> Option<bool> {
+            self.my
+        }
+    }
+    impl OwnedStructureProperties for StructureExtension {
+        fn my(&self) -> Option<bool> {
+            self.my
+        }
+    }
+    impl OwnedStructureProperties for StructureRampart {
+        fn my(&self) -> Option<bool> {
+            self.my
+        }
+    }
 
     #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
     pub struct Spawning {
@@ -631,13 +906,21 @@ pub mod objects {
     }
 
     impl Spawning {
-        pub fn need_time(&self) -> u32 { self.need_time }
-        pub fn remaining_time(&self) -> u32 { self.remaining_time }
+        pub fn need_time(&self) -> u32 {
+            self.need_time
+        }
+        pub fn remaining_time(&self) -> u32 {
+            self.remaining_time
+        }
     }
 
     define_mock_struct!(StructureSpawn, { hits: u32, hits_max: u32, energy: u32, energy_max: u32, my: Option<bool>, spawning: Option<Spawning>, next_id: String });
 
-    impl OwnedStructureProperties for StructureSpawn { fn my(&self) -> Option<bool> { self.my } }
+    impl OwnedStructureProperties for StructureSpawn {
+        fn my(&self) -> Option<bool> {
+            self.my
+        }
+    }
 
     impl StructureSpawn {
         pub fn spawning(&self) -> Option<Spawning> {
@@ -684,9 +967,14 @@ pub mod objects {
                     }
                     ptr = std::ptr::null();
                     len = 0;
-                    (iface.get_objects)(crate::prototypes::STRUCTURE_EXTENSION::ID, &mut ptr, &mut len);
+                    (iface.get_objects)(
+                        crate::prototypes::STRUCTURE_EXTENSION::ID,
+                        &mut ptr,
+                        &mut len,
+                    );
                     if !ptr.is_null() && len > 0 {
-                        let slice = std::slice::from_raw_parts(ptr as *const StructureExtension, len);
+                        let slice =
+                            std::slice::from_raw_parts(ptr as *const StructureExtension, len);
                         for e in slice {
                             if e.my == Some(true)
                                 && e.base.x.abs_diff(self.base.x) <= range
@@ -751,28 +1039,48 @@ pub mod objects {
     }
 
     impl HasPosition for Creep {
-        fn pos(&self) -> Position { self.base.pos() }
+        fn pos(&self) -> Position {
+            self.base.pos()
+        }
     }
 
     impl GameObjectProperties for Creep {
-        fn exists(&self) -> bool { self.base.exists() }
-        fn id(&self) -> JsString { self.base.id() }
-        fn x(&self) -> u8 { self.base.x() }
-        fn y(&self) -> u8 { self.base.y() }
-        fn ticks_to_decay(&self) -> Option<u32> { self.base.ticks_to_decay() }
+        fn exists(&self) -> bool {
+            self.base.exists()
+        }
+        fn id(&self) -> JsString {
+            self.base.id()
+        }
+        fn x(&self) -> u8 {
+            self.base.x()
+        }
+        fn y(&self) -> u8 {
+            self.base.y()
+        }
+        fn ticks_to_decay(&self) -> Option<u32> {
+            self.base.ticks_to_decay()
+        }
     }
 
     impl HasHits for Creep {
-        fn hits(&self) -> u32 { self.hits }
-        fn hits_max(&self) -> u32 { self.hits_max }
+        fn hits(&self) -> u32 {
+            self.hits
+        }
+        fn hits_max(&self) -> u32 {
+            self.hits_max
+        }
     }
 
     impl OwnedStructureProperties for Creep {
-        fn my(&self) -> Option<bool> { Some(self.my) }
+        fn my(&self) -> Option<bool> {
+            Some(self.my)
+        }
     }
 
     impl AsRef<GameObject> for Creep {
-        fn as_ref(&self) -> &GameObject { &self.base }
+        fn as_ref(&self) -> &GameObject {
+            &self.base
+        }
     }
 
     impl std::ops::Deref for Creep {
@@ -786,11 +1094,21 @@ pub mod objects {
     impl Transferable for Creep {}
 
     impl Creep {
-        pub fn fatigue(&self) -> u32 { self.fatigue }
-        pub fn hits(&self) -> u32 { self.hits }
-        pub fn hits_max(&self) -> u32 { self.hits_max }
-        pub fn my(&self) -> bool { self.my }
-        pub fn body(&self) -> Vec<BodyPart> { Vec::new() }
+        pub fn fatigue(&self) -> u32 {
+            self.fatigue
+        }
+        pub fn hits(&self) -> u32 {
+            self.hits
+        }
+        pub fn hits_max(&self) -> u32 {
+            self.hits_max
+        }
+        pub fn my(&self) -> bool {
+            self.my
+        }
+        pub fn body(&self) -> Vec<BodyPart> {
+            Vec::new()
+        }
         pub fn move_direction(&self, direction: Direction) -> ReturnCode {
             if !self.my {
                 return ReturnCode::NotOwner;
@@ -816,17 +1134,49 @@ pub mod objects {
             }
             ReturnCode::Ok
         }
-        pub fn move_to(&self, _target: &impl HasPosition, _options: Option<&Object>) -> ReturnCode { ReturnCode::Ok }
-        pub fn attack(&self, _target: &impl Attackable) -> ReturnCode { ReturnCode::Ok }
-        pub fn ranged_attack(&self, _target: &impl Attackable) -> ReturnCode { ReturnCode::Ok }
-        pub fn ranged_mass_attack(&self) -> ReturnCode { ReturnCode::Ok }
-        pub fn heal(&self, _target: &Creep) -> ReturnCode { ReturnCode::Ok }
-        pub fn ranged_heal(&self, _target: &Creep) -> ReturnCode { ReturnCode::Ok }
-        pub fn harvest(&self, _source: &Source) -> ReturnCode { ReturnCode::Ok }
-        pub fn transfer(&self, _target: &impl Transferable, _resource_type: ResourceType, _amount: Option<u32>) -> ReturnCode { ReturnCode::Ok }
-        pub fn withdraw(&self, _target: &impl Withdrawable, _resource_type: ResourceType, _amount: Option<u32>) -> ReturnCode { ReturnCode::Ok }
-        pub fn spawning(&self) -> bool { self.spawning }
-        pub fn pull(&self, _target: &Creep) -> ReturnCode { ReturnCode::Ok }
+        pub fn move_to(&self, _target: &impl HasPosition, _options: Option<&Object>) -> ReturnCode {
+            ReturnCode::Ok
+        }
+        pub fn attack(&self, _target: &impl Attackable) -> ReturnCode {
+            ReturnCode::Ok
+        }
+        pub fn ranged_attack(&self, _target: &impl Attackable) -> ReturnCode {
+            ReturnCode::Ok
+        }
+        pub fn ranged_mass_attack(&self) -> ReturnCode {
+            ReturnCode::Ok
+        }
+        pub fn heal(&self, _target: &Creep) -> ReturnCode {
+            ReturnCode::Ok
+        }
+        pub fn ranged_heal(&self, _target: &Creep) -> ReturnCode {
+            ReturnCode::Ok
+        }
+        pub fn harvest(&self, _source: &Source) -> ReturnCode {
+            ReturnCode::Ok
+        }
+        pub fn transfer(
+            &self,
+            _target: &impl Transferable,
+            _resource_type: ResourceType,
+            _amount: Option<u32>,
+        ) -> ReturnCode {
+            ReturnCode::Ok
+        }
+        pub fn withdraw(
+            &self,
+            _target: &impl Withdrawable,
+            _resource_type: ResourceType,
+            _amount: Option<u32>,
+        ) -> ReturnCode {
+            ReturnCode::Ok
+        }
+        pub fn spawning(&self) -> bool {
+            self.spawning
+        }
+        pub fn pull(&self, _target: &Creep) -> ReturnCode {
+            ReturnCode::Ok
+        }
     }
 
     #[derive(Clone, Debug)]
@@ -836,46 +1186,74 @@ pub mod objects {
     }
 
     impl BodyPart {
-        pub fn part(&self) -> Part { self.part }
-        pub fn hits(&self) -> u32 { self.hits }
+        pub fn part(&self) -> Part {
+            self.part
+        }
+        pub fn hits(&self) -> u32 {
+            self.hits
+        }
     }
 
     #[derive(Clone, Debug)]
     pub struct Store;
 
     impl Store {
-        pub fn get_capacity(&self, _resource_type: Option<ResourceType>) -> Option<u32> { Some(2000) }
-        pub fn get_used_capacity(&self, _resource_type: Option<ResourceType>) -> Option<u32> { Some(0) }
-        pub fn get_free_capacity(&self, _resource_type: Option<ResourceType>) -> Option<u32> { Some(2000) }
+        pub fn get_capacity(&self, _resource_type: Option<ResourceType>) -> Option<u32> {
+            Some(2000)
+        }
+        pub fn get_used_capacity(&self, _resource_type: Option<ResourceType>) -> Option<u32> {
+            Some(0)
+        }
+        pub fn get_free_capacity(&self, _resource_type: Option<ResourceType>) -> Option<u32> {
+            Some(2000)
+        }
     }
 
     impl HasStore for Creep {
-        fn store(&self) -> Store { Store }
+        fn store(&self) -> Store {
+            Store
+        }
     }
 
     impl HasStore for StructureSpawn {
-        fn store(&self) -> Store { Store }
+        fn store(&self) -> Store {
+            Store
+        }
     }
     impl HasStore for StructureTower {
-        fn store(&self) -> Store { Store }
+        fn store(&self) -> Store {
+            Store
+        }
     }
     impl HasStore for StructureExtension {
-        fn store(&self) -> Store { Store }
+        fn store(&self) -> Store {
+            Store
+        }
     }
     impl HasStore for StructureContainer {
-        fn store(&self) -> Store { Store }
+        fn store(&self) -> Store {
+            Store
+        }
     }
 
     // Dynamic trait implementations resolved via struct fields
 
     impl OwnedStructureProperties for ConstructionSite {
-        fn my(&self) -> Option<bool> { Some(self.my) }
+        fn my(&self) -> Option<bool> {
+            Some(self.my)
+        }
     }
 
     impl ConstructionSite {
-        pub fn my(&self) -> bool { self.my }
-        pub fn progress(&self) -> u32 { self.progress }
-        pub fn progress_total(&self) -> u32 { self.progress_total }
+        pub fn my(&self) -> bool {
+            self.my
+        }
+        pub fn progress(&self) -> u32 {
+            self.progress
+        }
+        pub fn progress_total(&self) -> u32 {
+            self.progress_total
+        }
     }
 
     impl Transferable for StructureSpawn {}
@@ -901,21 +1279,39 @@ pub mod objects {
         pub base: GameObject,
     }
     impl HasPosition for Structure {
-        fn pos(&self) -> Position { self.base.pos() }
+        fn pos(&self) -> Position {
+            self.base.pos()
+        }
     }
     impl GameObjectProperties for Structure {
-        fn exists(&self) -> bool { self.base.exists() }
-        fn id(&self) -> JsString { self.base.id() }
-        fn x(&self) -> u8 { self.base.x() }
-        fn y(&self) -> u8 { self.base.y() }
-        fn ticks_to_decay(&self) -> Option<u32> { self.base.ticks_to_decay() }
+        fn exists(&self) -> bool {
+            self.base.exists()
+        }
+        fn id(&self) -> JsString {
+            self.base.id()
+        }
+        fn x(&self) -> u8 {
+            self.base.x()
+        }
+        fn y(&self) -> u8 {
+            self.base.y()
+        }
+        fn ticks_to_decay(&self) -> Option<u32> {
+            self.base.ticks_to_decay()
+        }
     }
     impl HasHits for Structure {
-        fn hits(&self) -> u32 { 100 }
-        fn hits_max(&self) -> u32 { 100 }
+        fn hits(&self) -> u32 {
+            100
+        }
+        fn hits_max(&self) -> u32 {
+            100
+        }
     }
     impl AsRef<GameObject> for Structure {
-        fn as_ref(&self) -> &GameObject { &self.base }
+        fn as_ref(&self) -> &GameObject {
+            &self.base
+        }
     }
     impl std::ops::Deref for Structure {
         type Target = GameObject;
@@ -929,21 +1325,39 @@ pub mod objects {
         pub base: Structure,
     }
     impl HasPosition for OwnedStructure {
-        fn pos(&self) -> Position { self.base.pos() }
+        fn pos(&self) -> Position {
+            self.base.pos()
+        }
     }
     impl GameObjectProperties for OwnedStructure {
-        fn exists(&self) -> bool { self.base.base.exists() }
-        fn id(&self) -> JsString { self.base.base.id() }
-        fn x(&self) -> u8 { self.base.base.x() }
-        fn y(&self) -> u8 { self.base.base.y() }
-        fn ticks_to_decay(&self) -> Option<u32> { self.base.base.ticks_to_decay() }
+        fn exists(&self) -> bool {
+            self.base.base.exists()
+        }
+        fn id(&self) -> JsString {
+            self.base.base.id()
+        }
+        fn x(&self) -> u8 {
+            self.base.base.x()
+        }
+        fn y(&self) -> u8 {
+            self.base.base.y()
+        }
+        fn ticks_to_decay(&self) -> Option<u32> {
+            self.base.base.ticks_to_decay()
+        }
     }
     impl HasHits for OwnedStructure {
-        fn hits(&self) -> u32 { 100 }
-        fn hits_max(&self) -> u32 { 100 }
+        fn hits(&self) -> u32 {
+            100
+        }
+        fn hits_max(&self) -> u32 {
+            100
+        }
     }
     impl AsRef<GameObject> for OwnedStructure {
-        fn as_ref(&self) -> &GameObject { &self.base.as_ref() }
+        fn as_ref(&self) -> &GameObject {
+            &self.base.as_ref()
+        }
     }
     impl std::ops::Deref for OwnedStructure {
         type Target = Structure;
@@ -952,7 +1366,9 @@ pub mod objects {
         }
     }
     impl OwnedStructureProperties for OwnedStructure {
-        fn my(&self) -> Option<bool> { Some(true) }
+        fn my(&self) -> Option<bool> {
+            Some(true)
+        }
     }
     impl Attackable for OwnedStructure {}
 }
@@ -1070,15 +1486,15 @@ pub mod prototypes {
         const ID: u32 = 14;
     }
 
+    pub use self::CONSTRUCTION_SITE as CONSTRUCTION_SITE_PROTOTYPE;
     pub use self::CREEP as CREEP_PROTOTYPE;
-    pub use self::STRUCTURE_SPAWN as STRUCTURE_SPAWN_PROTOTYPE;
-    pub use self::STRUCTURE_TOWER as STRUCTURE_TOWER_PROTOTYPE;
-    pub use self::STRUCTURE_CONTAINER as STRUCTURE_CONTAINER_PROTOTYPE;
+    pub use self::FLAG as FLAG_PROTOTYPE;
     pub use self::RESOURCE as RESOURCE_PROTOTYPE;
     pub use self::SOURCE as SOURCE_PROTOTYPE;
-    pub use self::FLAG as FLAG_PROTOTYPE;
+    pub use self::STRUCTURE_CONTAINER as STRUCTURE_CONTAINER_PROTOTYPE;
     pub use self::STRUCTURE_EXTENSION as STRUCTURE_EXTENSION_PROTOTYPE;
-    pub use self::CONSTRUCTION_SITE as CONSTRUCTION_SITE_PROTOTYPE;
+    pub use self::STRUCTURE_SPAWN as STRUCTURE_SPAWN_PROTOTYPE;
+    pub use self::STRUCTURE_TOWER as STRUCTURE_TOWER_PROTOTYPE;
 }
 
 pub static STRUCTURE_TOWER_PROTOTYPE: js_sys::Object = js_sys::Object;
@@ -1086,4 +1502,3 @@ pub static STRUCTURE_EXTENSION_PROTOTYPE: js_sys::Object = js_sys::Object;
 pub static STRUCTURE_SPAWN_PROTOTYPE: js_sys::Object = js_sys::Object;
 pub static STRUCTURE_RAMPART_PROTOTYPE: js_sys::Object = js_sys::Object;
 pub static STRUCTURE_CONTAINER_PROTOTYPE: js_sys::Object = js_sys::Object;
-

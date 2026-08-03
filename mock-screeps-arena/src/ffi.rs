@@ -63,7 +63,13 @@ pub struct HostInterface {
     pub get_cpu_time: extern "C" fn() -> u32,
     pub get_objects: extern "C" fn(proto: u32, out_ptr: *mut *const c_void, out_len: *mut usize),
     pub get_terrain_at: extern "C" fn(x: u8, y: u8) -> u32,
-    pub queue_action: extern "C" fn(actor_id: *const c_char, action: u32, target_id: *const c_char, arg1: usize, arg2: usize),
+    pub queue_action: extern "C" fn(
+        actor_id: *const c_char,
+        action: u32,
+        target_id: *const c_char,
+        arg1: usize,
+        arg2: usize,
+    ),
 }
 
 pub static mut HOST_INTERFACE: Option<HostInterface> = None;

@@ -626,59 +626,52 @@ pub mod game {
             }
         }
 
-        #[derive(Debug, Clone, Serialize, Deserialize)]
+        #[derive(Debug)]
         pub struct SearchPathOptions {
-            pub cost_matrix: Option<CostMatrix>,
-            pub max_ops: Option<u32>,
-            pub heuristic_weight: Option<f64>,
-            pub max_rooms: Option<u32>,
-            pub plain_cost: Option<u8>,
-            pub swamp_cost: Option<u8>,
-            pub flee: Option<bool>,
+            pub cost_matrix: std::cell::RefCell<Option<CostMatrix>>,
+            pub max_ops: std::cell::Cell<Option<u32>>,
+            pub heuristic_weight: std::cell::Cell<Option<f64>>,
+            pub max_rooms: std::cell::Cell<Option<u32>>,
+            pub plain_cost: std::cell::Cell<Option<u8>>,
+            pub swamp_cost: std::cell::Cell<Option<u8>>,
+            pub flee: std::cell::Cell<Option<bool>>,
         }
 
         impl SearchPathOptions {
             pub fn new() -> Self {
                 SearchPathOptions {
-                    cost_matrix: None,
-                    max_ops: None,
-                    heuristic_weight: None,
-                    max_rooms: None,
-                    plain_cost: None,
-                    swamp_cost: None,
-                    flee: None,
+                    cost_matrix: std::cell::RefCell::new(None),
+                    max_ops: std::cell::Cell::new(None),
+                    heuristic_weight: std::cell::Cell::new(None),
+                    max_rooms: std::cell::Cell::new(None),
+                    plain_cost: std::cell::Cell::new(None),
+                    swamp_cost: std::cell::Cell::new(None),
+                    flee: std::cell::Cell::new(None),
                 }
             }
-            pub fn cost_matrix(mut self, cm: &CostMatrix) -> Self {
-                self.cost_matrix = Some(cm.clone());
-                self
+            pub fn cost_matrix(&self, cm: &CostMatrix) {
+                *self.cost_matrix.borrow_mut() = Some(cm.clone());
             }
-            pub fn max_ops(mut self, val: u32) -> Self {
-                self.max_ops = Some(val);
-                self
+            pub fn max_ops(&self, val: u32) {
+                self.max_ops.set(Some(val));
             }
-            pub fn heuristic_weight(mut self, val: f64) -> Self {
-                self.heuristic_weight = Some(val);
-                self
+            pub fn heuristic_weight(&self, val: f64) {
+                self.heuristic_weight.set(Some(val));
             }
-            pub fn max_rooms(mut self, val: u32) -> Self {
-                self.max_rooms = Some(val);
-                self
+            pub fn max_rooms(&self, val: u32) {
+                self.max_rooms.set(Some(val));
             }
-            pub fn plain_cost(mut self, val: u8) -> Self {
-                self.plain_cost = Some(val);
-                self
+            pub fn plain_cost(&self, val: u8) {
+                self.plain_cost.set(Some(val));
             }
-            pub fn swamp_cost(mut self, val: u8) -> Self {
-                self.swamp_cost = Some(val);
-                self
+            pub fn swamp_cost(&self, val: u8) {
+                self.swamp_cost.set(Some(val));
             }
-            pub fn flee(mut self, val: bool) -> Self {
-                self.flee = Some(val);
-                self
+            pub fn flee(&self, val: bool) {
+                self.flee.set(Some(val));
             }
             pub fn get_cost_matrix(&self) -> CostMatrix {
-                self.cost_matrix.clone().unwrap_or_else(CostMatrix::new)
+                self.cost_matrix.borrow().clone().unwrap_or_else(CostMatrix::new)
             }
         }
 
@@ -762,11 +755,11 @@ pub mod game {
                 };
             }
 
-            let plain_cost = options.and_then(|o| o.plain_cost).unwrap_or(2) as u32;
-            let swamp_cost = options.and_then(|o| o.swamp_cost).unwrap_or(10) as u32;
-            let max_ops = options.and_then(|o| o.max_ops).unwrap_or(2000);
-            let flee = options.and_then(|o| o.flee).unwrap_or(false);
-            let custom_cm = options.and_then(|o| o.cost_matrix.as_ref());
+            let plain_cost = options.and_then(|o| o.plain_cost.get()).unwrap_or(2) as u32;
+            let swamp_cost = options.and_then(|o| o.swamp_cost.get()).unwrap_or(10) as u32;
+            let max_ops = options.and_then(|o| o.max_ops.get()).unwrap_or(2000);
+            let flee = options.and_then(|o| o.flee.get()).unwrap_or(false);
+            let custom_cm: Option<CostMatrix> = options.and_then(|o| o.cost_matrix.borrow().clone());
 
             let is_at_goal = |pos: Position| -> bool {
                 for g in &goals {
@@ -873,7 +866,7 @@ pub mod game {
                         let neighbor = Position { x: nx as u8, y: ny as u8 };
 
                         // Tile cost calculation
-                        let tile_cost = if let Some(cm) = custom_cm {
+                        let tile_cost = if let Some(cm) = custom_cm.as_ref() {
                             let custom_c = cm.get(neighbor.x, neighbor.y);
                             if custom_c == 255 {
                                 continue; // Impassable

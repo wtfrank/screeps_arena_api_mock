@@ -729,7 +729,7 @@ pub mod game {
         }
 
         pub fn search_path(
-            origin: &crate::objects::GameObject,
+            origin: &wasm_bindgen::JsValue,
             goal: &wasm_bindgen::JsValue,
             options: Option<&SearchPathOptions>,
         ) -> SearchResults {
@@ -737,7 +737,10 @@ pub mod game {
             use std::cmp::Ordering;
             use crate::traits::HasPosition;
 
-            let start = origin.pos();
+            let start = unsafe {
+                let go = &*(origin as *const wasm_bindgen::JsValue as *const crate::objects::GameObject);
+                go.pos()
+            };
             let mut goals: Vec<GoalSpec> = Vec::new();
 
             if let Ok(single) = serde_wasm_bindgen::from_value::<GoalSpec>(goal.clone()) {
@@ -963,6 +966,14 @@ pub mod objects {
         }
     }
 
+    impl AsRef<wasm_bindgen::JsValue> for GameObject {
+        fn as_ref(&self) -> &wasm_bindgen::JsValue {
+            // Note: mock JsValue wrap
+            let _ = self;
+            unsafe { &*(self as *const GameObject as *const wasm_bindgen::JsValue) }
+        }
+    }
+
     impl HasPosition for GameObject {
         fn pos(&self) -> Position {
             Position {
@@ -1009,6 +1020,11 @@ pub mod objects {
             }
             impl AsRef<GameObject> for $name {
                 fn as_ref(&self) -> &GameObject { &self.base }
+            }
+            impl AsRef<wasm_bindgen::JsValue> for $name {
+                fn as_ref(&self) -> &wasm_bindgen::JsValue {
+                    unsafe { &*(self as *const $name as *const wasm_bindgen::JsValue) }
+                }
             }
             impl std::ops::Deref for $name {
                 type Target = GameObject;
@@ -1287,6 +1303,11 @@ pub mod objects {
     impl AsRef<GameObject> for Creep {
         fn as_ref(&self) -> &GameObject {
             &self.base
+        }
+    }
+    impl AsRef<wasm_bindgen::JsValue> for Creep {
+        fn as_ref(&self) -> &wasm_bindgen::JsValue {
+            unsafe { &*(self as *const Creep as *const wasm_bindgen::JsValue) }
         }
     }
 

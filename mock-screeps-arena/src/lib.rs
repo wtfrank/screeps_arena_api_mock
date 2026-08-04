@@ -1399,38 +1399,189 @@ pub mod objects {
         pub fn move_to(&self, _target: &impl HasPosition, _options: Option<&Object>) -> ReturnCode {
             ReturnCode::Ok
         }
-        pub fn attack(&self, _target: &impl Attackable) -> ReturnCode {
+        pub fn attack(&self, target: &impl Attackable) -> ReturnCode {
+            if !self.my {
+                return ReturnCode::NotOwner;
+            }
+            if self.spawning {
+                return ReturnCode::Busy;
+            }
+            unsafe {
+                if let Some(ref iface) = crate::ffi::HOST_INTERFACE {
+                    let actor_c = std::ffi::CString::new(self.base.id.clone()).unwrap();
+                    let target_c = std::ffi::CString::new(target.as_ref().id.clone()).unwrap();
+                    (iface.queue_action)(
+                        actor_c.as_ptr(),
+                        crate::ffi::ActionId::Attack as u32,
+                        target_c.as_ptr(),
+                        0,
+                        0,
+                    );
+                }
+            }
             ReturnCode::Ok
         }
-        pub fn ranged_attack(&self, _target: &impl Attackable) -> ReturnCode {
+        pub fn ranged_attack(&self, target: &impl Attackable) -> ReturnCode {
+            if !self.my {
+                return ReturnCode::NotOwner;
+            }
+            if self.spawning {
+                return ReturnCode::Busy;
+            }
+            unsafe {
+                if let Some(ref iface) = crate::ffi::HOST_INTERFACE {
+                    let actor_c = std::ffi::CString::new(self.base.id.clone()).unwrap();
+                    let target_c = std::ffi::CString::new(target.as_ref().id.clone()).unwrap();
+                    (iface.queue_action)(
+                        actor_c.as_ptr(),
+                        crate::ffi::ActionId::RangedAttack as u32,
+                        target_c.as_ptr(),
+                        0,
+                        0,
+                    );
+                }
+            }
             ReturnCode::Ok
         }
         pub fn ranged_mass_attack(&self) -> ReturnCode {
+            if !self.my {
+                return ReturnCode::NotOwner;
+            }
+            if self.spawning {
+                return ReturnCode::Busy;
+            }
+            unsafe {
+                if let Some(ref iface) = crate::ffi::HOST_INTERFACE {
+                    let actor_c = std::ffi::CString::new(self.base.id.clone()).unwrap();
+                    (iface.queue_action)(
+                        actor_c.as_ptr(),
+                        crate::ffi::ActionId::RangedMassAttack as u32,
+                        std::ptr::null(),
+                        0,
+                        0,
+                    );
+                }
+            }
             ReturnCode::Ok
         }
-        pub fn heal(&self, _target: &Creep) -> ReturnCode {
+        pub fn heal(&self, target: &Creep) -> ReturnCode {
+            if !self.my {
+                return ReturnCode::NotOwner;
+            }
+            if self.spawning {
+                return ReturnCode::Busy;
+            }
+            unsafe {
+                if let Some(ref iface) = crate::ffi::HOST_INTERFACE {
+                    let actor_c = std::ffi::CString::new(self.base.id.clone()).unwrap();
+                    let target_c = std::ffi::CString::new(target.base.id.clone()).unwrap();
+                    (iface.queue_action)(
+                        actor_c.as_ptr(),
+                        crate::ffi::ActionId::Heal as u32,
+                        target_c.as_ptr(),
+                        0,
+                        0,
+                    );
+                }
+            }
             ReturnCode::Ok
         }
-        pub fn ranged_heal(&self, _target: &Creep) -> ReturnCode {
+        pub fn ranged_heal(&self, target: &Creep) -> ReturnCode {
+            if !self.my {
+                return ReturnCode::NotOwner;
+            }
+            if self.spawning {
+                return ReturnCode::Busy;
+            }
+            unsafe {
+                if let Some(ref iface) = crate::ffi::HOST_INTERFACE {
+                    let actor_c = std::ffi::CString::new(self.base.id.clone()).unwrap();
+                    let target_c = std::ffi::CString::new(target.base.id.clone()).unwrap();
+                    (iface.queue_action)(
+                        actor_c.as_ptr(),
+                        crate::ffi::ActionId::RangedHeal as u32,
+                        target_c.as_ptr(),
+                        0,
+                        0,
+                    );
+                }
+            }
             ReturnCode::Ok
         }
-        pub fn harvest(&self, _source: &Source) -> ReturnCode {
+        pub fn harvest(&self, source: &Source) -> ReturnCode {
+            if !self.my {
+                return ReturnCode::NotOwner;
+            }
+            if self.spawning {
+                return ReturnCode::Busy;
+            }
+            unsafe {
+                if let Some(ref iface) = crate::ffi::HOST_INTERFACE {
+                    let actor_c = std::ffi::CString::new(self.base.id.clone()).unwrap();
+                    let target_c = std::ffi::CString::new(source.base.id.clone()).unwrap();
+                    (iface.queue_action)(
+                        actor_c.as_ptr(),
+                        crate::ffi::ActionId::Harvest as u32,
+                        target_c.as_ptr(),
+                        0,
+                        0,
+                    );
+                }
+            }
             ReturnCode::Ok
         }
         pub fn transfer(
             &self,
-            _target: &impl Transferable,
-            _resource_type: ResourceType,
-            _amount: Option<u32>,
+            target: &impl Transferable,
+            resource_type: ResourceType,
+            amount: Option<u32>,
         ) -> ReturnCode {
+            if !self.my {
+                return ReturnCode::NotOwner;
+            }
+            if self.spawning {
+                return ReturnCode::Busy;
+            }
+            unsafe {
+                if let Some(ref iface) = crate::ffi::HOST_INTERFACE {
+                    let actor_c = std::ffi::CString::new(self.base.id.clone()).unwrap();
+                    let target_c = std::ffi::CString::new(target.as_ref().id.clone()).unwrap();
+                    (iface.queue_action)(
+                        actor_c.as_ptr(),
+                        crate::ffi::ActionId::Transfer as u32,
+                        target_c.as_ptr(),
+                        resource_type as usize,
+                        amount.unwrap_or(0) as usize,
+                    );
+                }
+            }
             ReturnCode::Ok
         }
         pub fn withdraw(
             &self,
-            _target: &impl Withdrawable,
-            _resource_type: ResourceType,
-            _amount: Option<u32>,
+            target: &impl Withdrawable,
+            resource_type: ResourceType,
+            amount: Option<u32>,
         ) -> ReturnCode {
+            if !self.my {
+                return ReturnCode::NotOwner;
+            }
+            if self.spawning {
+                return ReturnCode::Busy;
+            }
+            unsafe {
+                if let Some(ref iface) = crate::ffi::HOST_INTERFACE {
+                    let actor_c = std::ffi::CString::new(self.base.id.clone()).unwrap();
+                    let target_c = std::ffi::CString::new(target.as_ref().id.clone()).unwrap();
+                    (iface.queue_action)(
+                        actor_c.as_ptr(),
+                        crate::ffi::ActionId::Withdraw as u32,
+                        target_c.as_ptr(),
+                        resource_type as usize,
+                        amount.unwrap_or(0) as usize,
+                    );
+                }
+            }
             ReturnCode::Ok
         }
         pub fn spawning(&self) -> bool {
@@ -2093,5 +2244,152 @@ mod tests {
         assert_eq!(creep.body().len(), 7);
         assert_eq!(creep.body()[0].part(), Part::Move);
         assert_eq!(creep.body()[6].part(), Part::Heal);
+    }
+
+    #[test]
+    fn test_creep_actions_ffi_queueing() {
+        use std::cell::RefCell;
+
+        thread_local! {
+            static LAST_ACTION: RefCell<Option<(u32, String, String, usize, usize)>> = RefCell::new(None);
+        }
+
+        extern "C" fn mock_get_ticks() -> u32 { 0 }
+        extern "C" fn mock_get_cpu_time() -> u32 { 0 }
+        extern "C" fn mock_get_objects(_: u32, _: *mut *const std::ffi::c_void, _: *mut usize) {}
+        extern "C" fn mock_get_terrain_at(_: u8, _: u8) -> u32 { 0 }
+        extern "C" fn mock_queue_action(
+            actor: *const std::ffi::c_char,
+            action_id: u32,
+            target: *const std::ffi::c_char,
+            arg1: usize,
+            arg2: usize,
+        ) {
+            let actor_str = unsafe { std::ffi::CStr::from_ptr(actor).to_str().unwrap().to_string() };
+            let target_str = if target.is_null() {
+                String::new()
+            } else {
+                unsafe { std::ffi::CStr::from_ptr(target).to_str().unwrap().to_string() }
+            };
+            LAST_ACTION.with(|cell| {
+                *cell.borrow_mut() = Some((action_id, actor_str, target_str, arg1, arg2));
+            });
+        }
+
+        unsafe {
+            crate::ffi::set_host_interface(crate::ffi::HostInterface {
+                get_ticks: mock_get_ticks,
+                get_cpu_time: mock_get_cpu_time,
+                get_objects: mock_get_objects,
+                get_terrain_at: mock_get_terrain_at,
+                queue_action: mock_queue_action,
+            });
+        }
+
+        let creep = Creep {
+            base: GameObject {
+                id: "c1".to_string(),
+                x: 10,
+                y: 10,
+            },
+            fatigue: 0,
+            hits: 100,
+            hits_max: 100,
+            my: true,
+            spawning: false,
+            body: Vec::new(),
+        };
+
+        let target_creep = Creep {
+            base: GameObject {
+                id: "c2".to_string(),
+                x: 10,
+                y: 11,
+            },
+            fatigue: 0,
+            hits: 100,
+            hits_max: 100,
+            my: false,
+            spawning: false,
+            body: Vec::new(),
+        };
+
+        // 1. Attack
+        assert_eq!(creep.attack(&target_creep), ReturnCode::Ok);
+        LAST_ACTION.with(|cell| {
+            let (action, actor, target, _, _) = cell.borrow().clone().unwrap();
+            assert_eq!(action, crate::ffi::ActionId::Attack as u32);
+            assert_eq!(actor, "c1");
+            assert_eq!(target, "c2");
+        });
+
+        // 2. Ranged Attack
+        assert_eq!(creep.ranged_attack(&target_creep), ReturnCode::Ok);
+        LAST_ACTION.with(|cell| {
+            let (action, actor, target, _, _) = cell.borrow().clone().unwrap();
+            assert_eq!(action, crate::ffi::ActionId::RangedAttack as u32);
+            assert_eq!(actor, "c1");
+            assert_eq!(target, "c2");
+        });
+
+        // 3. Ranged Mass Attack
+        assert_eq!(creep.ranged_mass_attack(), ReturnCode::Ok);
+        LAST_ACTION.with(|cell| {
+            let (action, actor, target, _, _) = cell.borrow().clone().unwrap();
+            assert_eq!(action, crate::ffi::ActionId::RangedMassAttack as u32);
+            assert_eq!(actor, "c1");
+            assert_eq!(target, "");
+        });
+
+        // 4. Heal
+        assert_eq!(creep.heal(&target_creep), ReturnCode::Ok);
+        LAST_ACTION.with(|cell| {
+            let (action, actor, target, _, _) = cell.borrow().clone().unwrap();
+            assert_eq!(action, crate::ffi::ActionId::Heal as u32);
+            assert_eq!(actor, "c1");
+            assert_eq!(target, "c2");
+        });
+
+        // 5. Ranged Heal
+        assert_eq!(creep.ranged_heal(&target_creep), ReturnCode::Ok);
+        LAST_ACTION.with(|cell| {
+            let (action, actor, target, _, _) = cell.borrow().clone().unwrap();
+            assert_eq!(action, crate::ffi::ActionId::RangedHeal as u32);
+            assert_eq!(actor, "c1");
+            assert_eq!(target, "c2");
+        });
+
+        // 6. Transfer
+        assert_eq!(creep.transfer(&target_creep, ResourceType::Energy, Some(50)), ReturnCode::Ok);
+        LAST_ACTION.with(|cell| {
+            let (action, actor, target, arg1, arg2) = cell.borrow().clone().unwrap();
+            assert_eq!(action, crate::ffi::ActionId::Transfer as u32);
+            assert_eq!(actor, "c1");
+            assert_eq!(target, "c2");
+            assert_eq!(arg1, ResourceType::Energy as usize);
+            assert_eq!(arg2, 50);
+        });
+
+        // 7. Withdraw
+        let target_container = StructureContainer {
+            base: GameObject {
+                id: "cont1".to_string(),
+                x: 10,
+                y: 11,
+            },
+            hits: 2500,
+            hits_max: 2500,
+            store: 1000,
+            store_max: 2000,
+        };
+        assert_eq!(creep.withdraw(&target_container, ResourceType::Energy, Some(100)), ReturnCode::Ok);
+        LAST_ACTION.with(|cell| {
+            let (action, actor, target, arg1, arg2) = cell.borrow().clone().unwrap();
+            assert_eq!(action, crate::ffi::ActionId::Withdraw as u32);
+            assert_eq!(actor, "c1");
+            assert_eq!(target, "cont1");
+            assert_eq!(arg1, ResourceType::Energy as usize);
+            assert_eq!(arg2, 100);
+        });
     }
 }

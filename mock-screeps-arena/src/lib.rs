@@ -532,10 +532,7 @@ pub mod game {
             Vec::new()
         }
 
-        pub fn get_terrain_at(pos: &wasm_bindgen::JsValue) -> crate::constants::Terrain {
-            // In the native simulator environment without a V8 runtime,
-            // pos will be a pointer or encoded value. If pos.as_f64() contains a coordinate, extract it.
-            let (x, y) = (0, 0);
+        pub fn get_terrain_at_pos(x: u8, y: u8) -> crate::constants::Terrain {
             unsafe {
                 if let Some(ref iface) = crate::ffi::HOST_INTERFACE {
                     let code = (iface.get_terrain_at)(x, y);
@@ -548,6 +545,18 @@ pub mod game {
                     crate::constants::Terrain::Plain
                 }
             }
+        }
+
+        pub fn get_terrain_at(pos: &wasm_bindgen::JsValue) -> crate::constants::Terrain {
+            let (x, y) = if let Ok(p) = serde_wasm_bindgen::from_value::<crate::game::pathfinder::Position>(pos.clone()) {
+                (p.x, p.y)
+            } else {
+                unsafe {
+                    let ptr = pos as *const wasm_bindgen::JsValue as *const crate::game::pathfinder::Position;
+                    ((*ptr).x, (*ptr).y)
+                }
+            };
+            get_terrain_at_pos(x, y)
         }
 
         pub fn create_construction_site(
@@ -876,14 +885,14 @@ pub mod game {
                             } else if custom_c > 0 {
                                 custom_c as u32
                             } else {
-                                match crate::game::utils::get_terrain_at(&serde_wasm_bindgen::to_value(&neighbor).unwrap()) {
+                                match crate::game::utils::get_terrain_at_pos(neighbor.x, neighbor.y) {
                                     crate::constants::Terrain::Wall => continue,
                                     crate::constants::Terrain::Swamp => swamp_cost,
                                     _ => plain_cost,
                                 }
                             }
                         } else {
-                            match crate::game::utils::get_terrain_at(&serde_wasm_bindgen::to_value(&neighbor).unwrap()) {
+                            match crate::game::utils::get_terrain_at_pos(neighbor.x, neighbor.y) {
                                 crate::constants::Terrain::Wall => continue,
                                 crate::constants::Terrain::Swamp => swamp_cost,
                                 _ => plain_cost,
@@ -1023,7 +1032,7 @@ pub mod objects {
             }
             impl AsRef<wasm_bindgen::JsValue> for $name {
                 fn as_ref(&self) -> &wasm_bindgen::JsValue {
-                    unsafe { &*(self as *const $name as *const wasm_bindgen::JsValue) }
+                    unsafe { &*(&self.base as *const GameObject as *const wasm_bindgen::JsValue) }
                 }
             }
             impl std::ops::Deref for $name {
@@ -1307,7 +1316,7 @@ pub mod objects {
     }
     impl AsRef<wasm_bindgen::JsValue> for Creep {
         fn as_ref(&self) -> &wasm_bindgen::JsValue {
-            unsafe { &*(self as *const Creep as *const wasm_bindgen::JsValue) }
+            unsafe { &*(&self.base as *const GameObject as *const wasm_bindgen::JsValue) }
         }
     }
 
@@ -1731,3 +1740,209 @@ pub static STRUCTURE_EXTENSION_PROTOTYPE: js_sys::Object = js_sys::Object;
 pub static STRUCTURE_SPAWN_PROTOTYPE: js_sys::Object = js_sys::Object;
 pub static STRUCTURE_RAMPART_PROTOTYPE: js_sys::Object = js_sys::Object;
 pub static STRUCTURE_CONTAINER_PROTOTYPE: js_sys::Object = js_sys::Object;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::game::pathfinder::{CostMatrix, Position, SearchPathOptions, search_path};
+    use crate::objects::{Creep, GameObject};
+
+    #[test]
+    fn test_search_path_creep_as_ref_origin() {
+        let creep = Creep {
+            base: GameObject {
+                id: "creep_1".to_string(),
+                x: 10,
+                y: 10,
+            },
+            fatigue: 0,
+            hits: 100,
+            hits_max: 100,
+            my: true,
+            spawning: false,
+        };
+
+        #[derive(serde::Serialize)]
+        struct GoalSpec {
+            pub pos: Position,
+            pub range: u8,
+        }
+
+        let goal = GoalSpec {
+            pos: Position { x: 10, y: 15 },
+            range: 1,
+        };
+        let js_goal = serde_wasm_bindgen::to_value(&goal).unwrap();
+
+        let options = SearchPathOptions::new();
+        options.plain_cost(1);
+
+        let results = search_path(creep.as_ref(), &js_goal, Some(&options));
+        assert!(!results.incomplete);
+        assert!(!results.path.is_empty());
+        assert_eq!(results.path.last().unwrap(), &Position { x: 10, y: 14 });
+    }
+
+    #[test]
+    fn test_search_path_options_interior_mutability() {
+        let options = SearchPathOptions::new();
+        options.flee(true);
+        options.plain_cost(5);
+        options.swamp_cost(20);
+
+        assert_eq!(options.flee.get(), Some(true));
+        assert_eq!(options.plain_cost.get(), Some(5));
+        assert_eq!(options.swamp_cost.get(), Some(20));
+    }
+
+    #[test]
+    fn test_search_path_default_empty_costmatrix() {
+        let creep = Creep {
+            base: GameObject {
+                id: "creep_default_cm".to_string(),
+                x: 5,
+                y: 5,
+            },
+            fatigue: 0,
+            hits: 100,
+            hits_max: 100,
+            my: true,
+            spawning: false,
+        };
+
+        #[derive(serde::Serialize)]
+        struct GoalSpec {
+            pub pos: Position,
+            pub range: u8,
+        }
+
+        let goal = GoalSpec {
+            pos: Position { x: 5, y: 10 },
+            range: 0,
+        };
+        let js_goal = serde_wasm_bindgen::to_value(&goal).unwrap();
+
+        // 1. Pass None for options -> default empty cost matrix logic
+        let results_none = search_path(creep.as_ref(), &js_goal, None);
+        assert!(!results_none.incomplete);
+        assert_eq!(results_none.path.len(), 5);
+        assert_eq!(results_none.path.last().unwrap(), &Position { x: 5, y: 10 });
+
+        // 2. Pass SearchPathOptions with an empty CostMatrix::new()
+        let options = SearchPathOptions::new();
+        let empty_cm = CostMatrix::new();
+        options.cost_matrix(&empty_cm);
+
+        let results_empty_cm = search_path(creep.as_ref(), &js_goal, Some(&options));
+        assert!(!results_empty_cm.incomplete);
+        assert_eq!(results_empty_cm.path.len(), 5);
+        assert_eq!(results_empty_cm.path.last().unwrap(), &Position { x: 5, y: 10 });
+    }
+
+    #[test]
+    fn test_search_path_with_costmatrix_obstacles() {
+        let creep = Creep {
+            base: GameObject {
+                id: "creep_cm_obstacles".to_string(),
+                x: 10,
+                y: 10,
+            },
+            fatigue: 0,
+            hits: 100,
+            hits_max: 100,
+            my: true,
+            spawning: false,
+        };
+
+        #[derive(serde::Serialize)]
+        struct GoalSpec {
+            pub pos: Position,
+            pub range: u8,
+        }
+
+        let goal = GoalSpec {
+            pos: Position { x: 10, y: 14 },
+            range: 0,
+        };
+        let js_goal = serde_wasm_bindgen::to_value(&goal).unwrap();
+
+        let options = SearchPathOptions::new();
+        let mut cm = CostMatrix::new();
+
+        // Block direct path (10, 11), (10, 12), (10, 13) with impassable cost 255
+        cm.set(10, 11, 255);
+        cm.set(10, 12, 255);
+        cm.set(10, 13, 255);
+
+        options.cost_matrix(&cm);
+
+        let results = search_path(creep.as_ref(), &js_goal, Some(&options));
+        assert!(!results.incomplete);
+        assert!(!results.path.is_empty());
+        assert_eq!(results.path.last().unwrap(), &Position { x: 10, y: 14 });
+
+        // Path must detoured around the blocked column (x != 10 for intermediate positions)
+        let contains_blocked_tile = results.path.iter().any(|p| p.x == 10 && (p.y >= 11 && p.y <= 13));
+        assert!(!contains_blocked_tile);
+    }
+
+    #[test]
+    fn test_search_path_around_terrain_wall() {
+        extern "C" fn mock_get_ticks() -> u32 { 0 }
+        extern "C" fn mock_get_cpu_time() -> u32 { 0 }
+        extern "C" fn mock_get_objects(_: u32, _: *mut *const std::ffi::c_void, _: *mut usize) {}
+        extern "C" fn mock_queue_action(_: *const std::ffi::c_char, _: u32, _: *const std::ffi::c_char, _: usize, _: usize) {}
+        extern "C" fn mock_get_terrain_at(x: u8, y: u8) -> u32 {
+            // Place a wall obstacle at (20, 21), (20, 22), (20, 23)
+            if x == 20 && (y == 21 || y == 22 || y == 23) {
+                1 // Wall
+            } else {
+                0 // Plain
+            }
+        }
+
+        unsafe {
+            crate::ffi::set_host_interface(crate::ffi::HostInterface {
+                get_ticks: mock_get_ticks,
+                get_cpu_time: mock_get_cpu_time,
+                get_objects: mock_get_objects,
+                get_terrain_at: mock_get_terrain_at,
+                queue_action: mock_queue_action,
+            });
+        }
+
+        let creep = Creep {
+            base: GameObject {
+                id: "creep_terrain_wall".to_string(),
+                x: 20,
+                y: 20,
+            },
+            fatigue: 0,
+            hits: 100,
+            hits_max: 100,
+            my: true,
+            spawning: false,
+        };
+
+        #[derive(serde::Serialize)]
+        struct GoalSpec {
+            pub pos: Position,
+            pub range: u8,
+        }
+
+        let goal = GoalSpec {
+            pos: Position { x: 20, y: 24 },
+            range: 0,
+        };
+        let js_goal = serde_wasm_bindgen::to_value(&goal).unwrap();
+
+        let results = search_path(creep.as_ref(), &js_goal, None);
+        assert!(!results.incomplete);
+        assert!(!results.path.is_empty());
+        assert_eq!(results.path.last().unwrap(), &Position { x: 20, y: 24 });
+
+        // Path must detour around the terrain wall at (20, 21-23)
+        let contains_terrain_wall = results.path.iter().any(|p| p.x == 20 && (p.y >= 21 && p.y <= 23));
+        assert!(!contains_terrain_wall);
+    }
+}

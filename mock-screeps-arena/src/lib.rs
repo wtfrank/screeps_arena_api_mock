@@ -73,14 +73,14 @@ pub mod constants {
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
     pub enum Part {
-        Move = 0,
-        Work = 1,
-        Carry = 2,
-        Attack = 3,
-        Heal = 4,
+        Move = 1,
+        Work = 2,
+        Carry = 3,
+        Attack = 4,
         RangedAttack = 5,
         Tough = 6,
-        Claim = 7,
+        Heal = 7,
+        Claim = 8,
     }
 
     impl Part {
@@ -1231,7 +1231,11 @@ pub mod objects {
                         }
                     }
                 }
-                (total_s, total_e)
+                if total_s == 0 && total_e == 0 && self.energy > 0 {
+                    (self.energy, 0)
+                } else {
+                    (total_s, total_e)
+                }
             };
 
             if spawn_energy + extension_energy < cost {
@@ -1257,6 +1261,11 @@ pub mod objects {
                 }
             }
 
+            let body_parts: Vec<BodyPart> = body
+                .iter()
+                .map(|&part| BodyPart { part, hits: 100 })
+                .collect();
+
             // Return mock Creep instance representing the spawning creep using pre-assigned next_id
             let new_creep_id = self.next_id.clone();
             Ok(Creep {
@@ -1270,6 +1279,7 @@ pub mod objects {
                 hits_max: body.len() as u32 * 100,
                 my: true,
                 spawning: true,
+                body: body_parts,
             })
         }
     }
@@ -1282,6 +1292,7 @@ pub mod objects {
         pub hits_max: u32,
         pub my: bool,
         pub spawning: bool,
+        pub body: Vec<BodyPart>,
     }
 
     impl HasPosition for Creep {
@@ -1358,7 +1369,7 @@ pub mod objects {
             self.my
         }
         pub fn body(&self) -> Vec<BodyPart> {
-            Vec::new()
+            self.body.clone()
         }
         pub fn move_direction(&self, direction: Direction) -> ReturnCode {
             if !self.my {
@@ -1430,7 +1441,7 @@ pub mod objects {
         }
     }
 
-    #[derive(Clone, Debug)]
+    #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
     pub struct BodyPart {
         pub part: Part,
         pub hits: u32,
@@ -1774,6 +1785,7 @@ mod tests {
             hits_max: 100,
             my: true,
             spawning: false,
+            body: Vec::new(),
         };
 
         #[derive(serde::Serialize)]
@@ -1822,6 +1834,7 @@ mod tests {
             hits_max: 100,
             my: true,
             spawning: false,
+            body: Vec::new(),
         };
 
         #[derive(serde::Serialize)]
@@ -1866,6 +1879,7 @@ mod tests {
             hits_max: 100,
             my: true,
             spawning: false,
+            body: Vec::new(),
         };
 
         #[derive(serde::Serialize)]
@@ -1936,6 +1950,7 @@ mod tests {
             hits_max: 100,
             my: true,
             spawning: false,
+            body: Vec::new(),
         };
 
         #[derive(serde::Serialize)]
@@ -1973,6 +1988,7 @@ mod tests {
             hits_max: 100,
             my: true,
             spawning: false,
+            body: Vec::new(),
         };
 
         // Pass a raw Position struct as goal instead of GoalSpec { pos, range }
@@ -1998,6 +2014,7 @@ mod tests {
             hits_max: 100,
             my: true,
             spawning: false,
+            body: Vec::new(),
         };
 
         // 1. Vec<GoalSpec>
@@ -2042,5 +2059,39 @@ mod tests {
         assert!(!results.incomplete);
         assert_eq!(results.path.len(), 3);
         assert_eq!(results.path.last().unwrap(), &Position { x: 5, y: 8 });
+    }
+
+    #[test]
+    fn test_spawn_creep_body_packing() {
+        use crate::constants::Part;
+
+        let spawn = StructureSpawn {
+            base: GameObject {
+                id: "spawn1".to_string(),
+                x: 10,
+                y: 10,
+            },
+            hits: 5000,
+            hits_max: 5000,
+            energy: 1000,
+            energy_max: 1000,
+            my: Some(true),
+            spawning: None,
+            next_id: "creep1".to_string(),
+        };
+
+        let body = vec![Part::Move, Part::Work, Part::Carry, Part::Attack, Part::RangedAttack, Part::Tough, Part::Heal];
+        let mut encoded_body: usize = 0;
+        for (i, part) in body.iter().enumerate().take(16) {
+            encoded_body |= ((*part as usize) & 0xF) << (i * 4);
+        }
+
+        // 0x7654321 = (7<<24) | (6<<20) | (5<<16) | (4<<12) | (3<<8) | (2<<4) | (1<<0)
+        assert_eq!(encoded_body, 0x7654321);
+
+        let creep = spawn.spawn_creep(&body).unwrap();
+        assert_eq!(creep.body().len(), 7);
+        assert_eq!(creep.body()[0].part(), Part::Move);
+        assert_eq!(creep.body()[6].part(), Part::Heal);
     }
 }

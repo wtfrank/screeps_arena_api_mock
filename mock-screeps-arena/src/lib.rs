@@ -746,16 +746,24 @@ pub mod game {
             use std::cmp::Ordering;
             use crate::traits::HasPosition;
 
-            let start = unsafe {
-                let go = &*(origin as *const wasm_bindgen::JsValue as *const crate::objects::GameObject);
-                go.pos()
+            let start = if let Ok(pos) = serde_wasm_bindgen::from_value::<Position>(origin.clone()) {
+                pos
+            } else {
+                unsafe {
+                    let go = &*(origin as *const wasm_bindgen::JsValue as *const crate::objects::GameObject);
+                    go.pos()
+                }
             };
             let mut goals: Vec<GoalSpec> = Vec::new();
 
             if let Ok(single) = serde_wasm_bindgen::from_value::<GoalSpec>(goal.clone()) {
                 goals.push(single);
+            } else if let Ok(pos) = serde_wasm_bindgen::from_value::<Position>(goal.clone()) {
+                goals.push(GoalSpec { pos, range: 0 });
             } else if let Ok(multi) = serde_wasm_bindgen::from_value::<Vec<GoalSpec>>(goal.clone()) {
                 goals = multi;
+            } else if let Ok(multi_pos) = serde_wasm_bindgen::from_value::<Vec<Position>>(goal.clone()) {
+                goals = multi_pos.into_iter().map(|pos| GoalSpec { pos, range: 0 }).collect();
             }
 
             if goals.is_empty() {
@@ -769,7 +777,7 @@ pub mod game {
 
             let plain_cost = options.and_then(|o| o.plain_cost.get()).unwrap_or(2) as u32;
             let swamp_cost = options.and_then(|o| o.swamp_cost.get()).unwrap_or(10) as u32;
-            let max_ops = options.and_then(|o| o.max_ops.get()).unwrap_or(2000);
+            let max_ops = options.and_then(|o| o.max_ops.get()).unwrap_or(50000);
             let flee = options.and_then(|o| o.flee.get()).unwrap_or(false);
             let custom_cm: Option<CostMatrix> = options.and_then(|o| o.cost_matrix.borrow().clone());
 
@@ -933,6 +941,12 @@ pub mod game {
                     incomplete: false,
                 }
             } else {
+                let cm_start_cost = custom_cm.as_ref().map(|cm| cm.get(start.x, start.y)).unwrap_or(0);
+                let goals_info: Vec<String> = goals.iter().map(|g| format!("({},{}) r:{}", g.pos.x, g.pos.y, g.range)).collect();
+                log::debug!(
+                    "[search_path] INCOMPLETE PATH: start=({},{}) start_cm_cost={} flee={} max_ops={} ops_used={} plain_cost={} swamp_cost={} goals=[{}]",
+                    start.x, start.y, cm_start_cost, flee, max_ops, ops, plain_cost, swamp_cost, goals_info.join(", ")
+                );
                 SearchResults {
                     path: Vec::new(),
                     ops,
@@ -1944,5 +1958,89 @@ mod tests {
         // Path must detour around the terrain wall at (20, 21-23)
         let contains_terrain_wall = results.path.iter().any(|p| p.x == 20 && (p.y >= 21 && p.y <= 23));
         assert!(!contains_terrain_wall);
+    }
+
+    #[test]
+    fn test_search_path_raw_position_goal() {
+        let creep = Creep {
+            base: GameObject {
+                id: "creep_raw_pos_goal".to_string(),
+                x: 10,
+                y: 10,
+            },
+            fatigue: 0,
+            hits: 100,
+            hits_max: 100,
+            my: true,
+            spawning: false,
+        };
+
+        // Pass a raw Position struct as goal instead of GoalSpec { pos, range }
+        let raw_pos_goal = Position { x: 10, y: 13 };
+        let js_goal = serde_wasm_bindgen::to_value(&raw_pos_goal).unwrap();
+
+        let results = search_path(creep.as_ref(), &js_goal, None);
+        assert!(!results.incomplete);
+        assert_eq!(results.path.len(), 3);
+        assert_eq!(results.path.last().unwrap(), &Position { x: 10, y: 13 });
+    }
+
+    #[test]
+    fn test_search_path_multi_goals() {
+        let creep = Creep {
+            base: GameObject {
+                id: "creep_multi_goals".to_string(),
+                x: 10,
+                y: 10,
+            },
+            fatigue: 0,
+            hits: 100,
+            hits_max: 100,
+            my: true,
+            spawning: false,
+        };
+
+        // 1. Vec<GoalSpec>
+        #[derive(serde::Serialize)]
+        struct GoalSpec {
+            pub pos: Position,
+            pub range: u8,
+        }
+
+        let multi_goal_specs = vec![
+            GoalSpec { pos: Position { x: 10, y: 13 }, range: 0 },
+            GoalSpec { pos: Position { x: 10, y: 18 }, range: 0 },
+        ];
+        let js_multi_spec = serde_wasm_bindgen::to_value(&multi_goal_specs).unwrap();
+
+        let results_spec = search_path(creep.as_ref(), &js_multi_spec, None);
+        assert!(!results_spec.incomplete);
+        assert_eq!(results_spec.path.last().unwrap(), &Position { x: 10, y: 13 }); // Closest goal reached
+
+        // 2. Vec<Position>
+        let multi_pos = vec![
+            Position { x: 10, y: 13 },
+            Position { x: 10, y: 18 },
+        ];
+        let js_multi_pos = serde_wasm_bindgen::to_value(&multi_pos).unwrap();
+
+        let results_pos = search_path(creep.as_ref(), &js_multi_pos, None);
+        assert!(!results_pos.incomplete);
+        assert_eq!(results_pos.path.last().unwrap(), &Position { x: 10, y: 13 });
+    }
+
+    #[test]
+    fn test_search_path_raw_position_origin() {
+        // Pass a serialized Position directly as origin
+        let raw_pos_origin = Position { x: 5, y: 5 };
+        let js_origin = serde_wasm_bindgen::to_value(&raw_pos_origin).unwrap();
+
+        let raw_pos_goal = Position { x: 5, y: 8 };
+        let js_goal = serde_wasm_bindgen::to_value(&raw_pos_goal).unwrap();
+
+        let results = search_path(&js_origin, &js_goal, None);
+        assert!(!results.incomplete);
+        assert_eq!(results.path.len(), 3);
+        assert_eq!(results.path.last().unwrap(), &Position { x: 5, y: 8 });
     }
 }

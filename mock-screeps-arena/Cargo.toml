@@ -13,6 +13,7 @@ serde = { version = "1", features = ["derive"] }
 wasm-bindgen = { path = "../mock-wasm-bindgen" }
 js-sys = { path = "../mock-js-sys" }
 serde-wasm-bindgen = { path = "../mock-serde-wasm-bindgen" }
+log = "0.4"
 
 [features]
 default = []

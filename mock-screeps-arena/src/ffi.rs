@@ -80,3 +80,10 @@ pub extern "C" fn set_host_interface(interface: HostInterface) {
         HOST_INTERFACE = Some(interface);
     }
 }
+
+pub fn with_host_interface<R>(f: impl FnOnce(&HostInterface) -> R) -> Option<R> {
+    unsafe {
+        let opt = std::ptr::addr_of!(HOST_INTERFACE).read();
+        opt.as_ref().map(f)
+    }
+}

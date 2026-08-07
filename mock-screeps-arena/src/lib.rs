@@ -80,7 +80,6 @@ pub mod constants {
         RangedAttack = 5,
         Tough = 6,
         Heal = 7,
-        Claim = 8,
     }
 
     impl Part {
@@ -90,10 +89,9 @@ pub mod constants {
                 Part::Work => 100,
                 Part::Carry => 50,
                 Part::Attack => 80,
-                Part::Heal => 250,
                 Part::RangedAttack => 150,
                 Part::Tough => 10,
-                Part::Claim => 600,
+                Part::Heal => 250,
             }
         }
     }
@@ -384,22 +382,10 @@ pub mod game {
         }
 
         pub fn get_ticks() -> u32 {
-            unsafe {
-                if let Some(ref iface) = crate::ffi::HOST_INTERFACE {
-                    (iface.get_ticks)()
-                } else {
-                    1
-                }
-            }
+            crate::ffi::with_host_interface(|iface| (iface.get_ticks)()).unwrap_or(1)
         }
         pub fn get_cpu_time() -> u32 {
-            unsafe {
-                if let Some(ref iface) = crate::ffi::HOST_INTERFACE {
-                    (iface.get_cpu_time)()
-                } else {
-                    0
-                }
-            }
+            crate::ffi::with_host_interface(|iface| (iface.get_cpu_time)()).unwrap_or(0)
         }
         pub fn get_heap_statistics() -> HeapStatistics {
             HeapStatistics {
@@ -518,33 +504,30 @@ pub mod game {
             T: crate::prototypes::PrototypeConstant,
             T::Item: Clone,
         {
-            unsafe {
-                if let Some(ref iface) = crate::ffi::HOST_INTERFACE {
-                    let mut ptr: *const std::ffi::c_void = std::ptr::null();
-                    let mut len: usize = 0;
-                    (iface.get_objects)(T::ID, &mut ptr, &mut len);
-                    if !ptr.is_null() && len > 0 {
-                        let slice = std::slice::from_raw_parts(ptr as *const T::Item, len);
-                        return slice.to_vec();
-                    }
+            crate::ffi::with_host_interface(|iface| {
+                let mut ptr: *const std::ffi::c_void = std::ptr::null();
+                let mut len: usize = 0;
+                (iface.get_objects)(T::ID, &mut ptr, &mut len);
+                if !ptr.is_null() && len > 0 {
+                    let slice = unsafe { std::slice::from_raw_parts(ptr as *const T::Item, len) };
+                    slice.to_vec()
+                } else {
+                    Vec::new()
                 }
-            }
-            Vec::new()
+            })
+            .unwrap_or_default()
         }
 
         pub fn get_terrain_at_pos(x: u8, y: u8) -> crate::constants::Terrain {
-            unsafe {
-                if let Some(ref iface) = crate::ffi::HOST_INTERFACE {
-                    let code = (iface.get_terrain_at)(x, y);
-                    match code {
-                        1 => crate::constants::Terrain::Wall,
-                        2 => crate::constants::Terrain::Swamp,
-                        _ => crate::constants::Terrain::Plain,
-                    }
-                } else {
-                    crate::constants::Terrain::Plain
+            crate::ffi::with_host_interface(|iface| {
+                let code = (iface.get_terrain_at)(x, y);
+                match code {
+                    1 => crate::constants::Terrain::Wall,
+                    2 => crate::constants::Terrain::Swamp,
+                    _ => crate::constants::Terrain::Plain,
                 }
-            }
+            })
+            .unwrap_or(crate::constants::Terrain::Plain)
         }
 
         pub fn get_terrain_at(pos: &wasm_bindgen::JsValue) -> crate::constants::Terrain {
@@ -1196,7 +1179,7 @@ pub mod objects {
                 let mut total_s = 0;
                 let mut total_e = 0;
                 let range = crate::constants::SPAWN_RANGE as u8;
-                if let Some(ref iface) = crate::ffi::HOST_INTERFACE {
+                crate::ffi::with_host_interface(|iface| {
                     let mut ptr: *const std::ffi::c_void = std::ptr::null();
                     let mut len: usize = 0;
                     (iface.get_objects)(crate::prototypes::STRUCTURE_SPAWN::ID, &mut ptr, &mut len);
@@ -1230,7 +1213,7 @@ pub mod objects {
                             }
                         }
                     }
-                }
+                });
                 if total_s == 0 && total_e == 0 && self.energy > 0 {
                     (self.energy, 0)
                 } else {
@@ -1248,18 +1231,16 @@ pub mod objects {
                 encoded_body |= ((*part as usize) & 0xF) << (i * 4);
             }
 
-            unsafe {
-                if let Some(ref iface) = crate::ffi::HOST_INTERFACE {
-                    let actor_c = std::ffi::CString::new(self.base.id.clone()).unwrap();
-                    (iface.queue_action)(
-                        actor_c.as_ptr(),
-                        crate::ffi::ActionId::SpawnCreep as u32,
-                        std::ptr::null(),
-                        body.len(),
-                        encoded_body,
-                    );
-                }
-            }
+            crate::ffi::with_host_interface(|iface| {
+                let actor_c = std::ffi::CString::new(self.base.id.clone()).unwrap();
+                (iface.queue_action)(
+                    actor_c.as_ptr(),
+                    crate::ffi::ActionId::SpawnCreep as u32,
+                    std::ptr::null(),
+                    body.len(),
+                    encoded_body,
+                );
+            });
 
             let body_parts: Vec<BodyPart> = body
                 .iter()
@@ -1382,22 +1363,106 @@ pub mod objects {
                 return ReturnCode::Tired;
             }
 
-            unsafe {
-                if let Some(ref iface) = crate::ffi::HOST_INTERFACE {
-                    let actor_c = std::ffi::CString::new(self.base.id.clone()).unwrap();
-                    (iface.queue_action)(
-                        actor_c.as_ptr(),
-                        crate::ffi::ActionId::Move as u32,
-                        std::ptr::null(),
-                        direction as usize,
-                        0,
-                    );
-                }
-            }
+            crate::ffi::with_host_interface(|iface| {
+                let actor_c = std::ffi::CString::new(self.base.id.clone()).unwrap();
+                (iface.queue_action)(
+                    actor_c.as_ptr(),
+                    crate::ffi::ActionId::Move as u32,
+                    std::ptr::null(),
+                    direction as usize,
+                    0,
+                );
+            });
             ReturnCode::Ok
         }
-        pub fn move_to(&self, _target: &impl HasPosition, _options: Option<&Object>) -> ReturnCode {
-            ReturnCode::Ok
+        pub fn move_to(&self, target: &impl HasPosition, _options: Option<&Object>) -> ReturnCode {
+            if !self.my {
+                return ReturnCode::NotOwner;
+            }
+            if self.spawning {
+                return ReturnCode::Busy;
+            }
+            if self.fatigue > 0 {
+                return ReturnCode::Tired;
+            }
+            let has_move_part = self.body.iter().any(|p| p.hits > 0 && p.part == Part::Move);
+            if !has_move_part {
+                return ReturnCode::NoBodypart;
+            }
+
+            let my_pos = self.pos();
+            let target_pos = target.pos();
+            if my_pos == target_pos {
+                return ReturnCode::Ok;
+            }
+
+            // Build CostMatrix populating all obstacles as cost 255 (unless specified otherwise)
+            let mut cm = crate::game::pathfinder::CostMatrix::new();
+            let has_host = crate::ffi::with_host_interface(|_| ()).is_some();
+            if has_host {
+                if let Ok(spawns) = std::panic::catch_unwind(|| crate::game::utils::get_objects_by_prototype(crate::constants::prototypes::STRUCTURE_SPAWN)) {
+                    for s in spawns {
+                        cm.set(s.base.x, s.base.y, 255);
+                    }
+                }
+                if let Ok(towers) = std::panic::catch_unwind(|| crate::game::utils::get_objects_by_prototype(crate::constants::prototypes::STRUCTURE_TOWER)) {
+                    for t in towers {
+                        cm.set(t.base.x, t.base.y, 255);
+                    }
+                }
+                if let Ok(exts) = std::panic::catch_unwind(|| crate::game::utils::get_objects_by_prototype(crate::constants::prototypes::STRUCTURE_EXTENSION)) {
+                    for e in exts {
+                        cm.set(e.base.x, e.base.y, 255);
+                    }
+                }
+                if let Ok(walls) = std::panic::catch_unwind(|| crate::game::utils::get_objects_by_prototype(crate::constants::prototypes::STRUCTURE_WALL)) {
+                    for w in walls {
+                        cm.set(w.base.x, w.base.y, 255);
+                    }
+                }
+                if let Ok(creeps) = std::panic::catch_unwind(|| crate::game::utils::get_objects_by_prototype(crate::constants::prototypes::CREEP)) {
+                    for c in creeps {
+                        if c.base.id != self.base.id {
+                            cm.set(c.base.x, c.base.y, 255);
+                        }
+                    }
+                }
+            }
+
+            // Target tile should be passable even if occupied (e.g. attacking enemy spawn/creep)
+            cm.set(target_pos.x, target_pos.y, 0);
+
+            let opts = crate::game::pathfinder::SearchPathOptions::new();
+            opts.cost_matrix(&cm);
+
+            let origin_js = serde_wasm_bindgen::to_value(&my_pos).unwrap_or(wasm_bindgen::JsValue::UNDEFINED);
+            let goal_js = serde_wasm_bindgen::to_value(&target_pos).unwrap_or(wasm_bindgen::JsValue::UNDEFINED);
+            let search_results = crate::game::pathfinder::search_path(&origin_js, &goal_js, Some(&opts));
+
+            let next_step = if let Some(&next_pos) = search_results.path.first() {
+                next_pos
+            } else {
+                Position {
+                    x: (my_pos.x as i32 + (target_pos.x as i32 - my_pos.x as i32).signum()) as u8,
+                    y: (my_pos.y as i32 + (target_pos.y as i32 - my_pos.y as i32).signum()) as u8,
+                }
+            };
+
+            let dx = next_step.x as i32 - my_pos.x as i32;
+            let dy = next_step.y as i32 - my_pos.y as i32;
+
+            let direction = match (dx.signum(), dy.signum()) {
+                (0, -1) => Direction::Top,
+                (1, -1) => Direction::TopRight,
+                (1, 0) => Direction::Right,
+                (1, 1) => Direction::BottomRight,
+                (0, 1) => Direction::Bottom,
+                (-1, 1) => Direction::BottomLeft,
+                (-1, 0) => Direction::Left,
+                (-1, -1) => Direction::TopLeft,
+                _ => return ReturnCode::Ok,
+            };
+            self.move_direction(direction)
         }
         pub fn attack(&self, target: &impl Attackable) -> ReturnCode {
             if !self.my {
@@ -1406,19 +1471,17 @@ pub mod objects {
             if self.spawning {
                 return ReturnCode::Busy;
             }
-            unsafe {
-                if let Some(ref iface) = crate::ffi::HOST_INTERFACE {
-                    let actor_c = std::ffi::CString::new(self.base.id.clone()).unwrap();
-                    let target_c = std::ffi::CString::new(target.as_ref().id.clone()).unwrap();
-                    (iface.queue_action)(
-                        actor_c.as_ptr(),
-                        crate::ffi::ActionId::Attack as u32,
-                        target_c.as_ptr(),
-                        0,
-                        0,
-                    );
-                }
-            }
+            crate::ffi::with_host_interface(|iface| {
+                let actor_c = std::ffi::CString::new(self.base.id.clone()).unwrap();
+                let target_c = std::ffi::CString::new(target.as_ref().id.clone()).unwrap();
+                (iface.queue_action)(
+                    actor_c.as_ptr(),
+                    crate::ffi::ActionId::Attack as u32,
+                    target_c.as_ptr(),
+                    0,
+                    0,
+                );
+            });
             ReturnCode::Ok
         }
         pub fn ranged_attack(&self, target: &impl Attackable) -> ReturnCode {
@@ -1428,19 +1491,17 @@ pub mod objects {
             if self.spawning {
                 return ReturnCode::Busy;
             }
-            unsafe {
-                if let Some(ref iface) = crate::ffi::HOST_INTERFACE {
-                    let actor_c = std::ffi::CString::new(self.base.id.clone()).unwrap();
-                    let target_c = std::ffi::CString::new(target.as_ref().id.clone()).unwrap();
-                    (iface.queue_action)(
-                        actor_c.as_ptr(),
-                        crate::ffi::ActionId::RangedAttack as u32,
-                        target_c.as_ptr(),
-                        0,
-                        0,
-                    );
-                }
-            }
+            crate::ffi::with_host_interface(|iface| {
+                let actor_c = std::ffi::CString::new(self.base.id.clone()).unwrap();
+                let target_c = std::ffi::CString::new(target.as_ref().id.clone()).unwrap();
+                (iface.queue_action)(
+                    actor_c.as_ptr(),
+                    crate::ffi::ActionId::RangedAttack as u32,
+                    target_c.as_ptr(),
+                    0,
+                    0,
+                );
+            });
             ReturnCode::Ok
         }
         pub fn ranged_mass_attack(&self) -> ReturnCode {
@@ -1450,18 +1511,16 @@ pub mod objects {
             if self.spawning {
                 return ReturnCode::Busy;
             }
-            unsafe {
-                if let Some(ref iface) = crate::ffi::HOST_INTERFACE {
-                    let actor_c = std::ffi::CString::new(self.base.id.clone()).unwrap();
-                    (iface.queue_action)(
-                        actor_c.as_ptr(),
-                        crate::ffi::ActionId::RangedMassAttack as u32,
-                        std::ptr::null(),
-                        0,
-                        0,
-                    );
-                }
-            }
+            crate::ffi::with_host_interface(|iface| {
+                let actor_c = std::ffi::CString::new(self.base.id.clone()).unwrap();
+                (iface.queue_action)(
+                    actor_c.as_ptr(),
+                    crate::ffi::ActionId::RangedMassAttack as u32,
+                    std::ptr::null(),
+                    0,
+                    0,
+                );
+            });
             ReturnCode::Ok
         }
         pub fn heal(&self, target: &Creep) -> ReturnCode {
@@ -1471,19 +1530,17 @@ pub mod objects {
             if self.spawning {
                 return ReturnCode::Busy;
             }
-            unsafe {
-                if let Some(ref iface) = crate::ffi::HOST_INTERFACE {
-                    let actor_c = std::ffi::CString::new(self.base.id.clone()).unwrap();
-                    let target_c = std::ffi::CString::new(target.base.id.clone()).unwrap();
-                    (iface.queue_action)(
-                        actor_c.as_ptr(),
-                        crate::ffi::ActionId::Heal as u32,
-                        target_c.as_ptr(),
-                        0,
-                        0,
-                    );
-                }
-            }
+            crate::ffi::with_host_interface(|iface| {
+                let actor_c = std::ffi::CString::new(self.base.id.clone()).unwrap();
+                let target_c = std::ffi::CString::new(target.base.id.clone()).unwrap();
+                (iface.queue_action)(
+                    actor_c.as_ptr(),
+                    crate::ffi::ActionId::Heal as u32,
+                    target_c.as_ptr(),
+                    0,
+                    0,
+                );
+            });
             ReturnCode::Ok
         }
         pub fn ranged_heal(&self, target: &Creep) -> ReturnCode {
@@ -1493,19 +1550,17 @@ pub mod objects {
             if self.spawning {
                 return ReturnCode::Busy;
             }
-            unsafe {
-                if let Some(ref iface) = crate::ffi::HOST_INTERFACE {
-                    let actor_c = std::ffi::CString::new(self.base.id.clone()).unwrap();
-                    let target_c = std::ffi::CString::new(target.base.id.clone()).unwrap();
-                    (iface.queue_action)(
-                        actor_c.as_ptr(),
-                        crate::ffi::ActionId::RangedHeal as u32,
-                        target_c.as_ptr(),
-                        0,
-                        0,
-                    );
-                }
-            }
+            crate::ffi::with_host_interface(|iface| {
+                let actor_c = std::ffi::CString::new(self.base.id.clone()).unwrap();
+                let target_c = std::ffi::CString::new(target.base.id.clone()).unwrap();
+                (iface.queue_action)(
+                    actor_c.as_ptr(),
+                    crate::ffi::ActionId::RangedHeal as u32,
+                    target_c.as_ptr(),
+                    0,
+                    0,
+                );
+            });
             ReturnCode::Ok
         }
         pub fn harvest(&self, source: &Source) -> ReturnCode {
@@ -1515,19 +1570,17 @@ pub mod objects {
             if self.spawning {
                 return ReturnCode::Busy;
             }
-            unsafe {
-                if let Some(ref iface) = crate::ffi::HOST_INTERFACE {
-                    let actor_c = std::ffi::CString::new(self.base.id.clone()).unwrap();
-                    let target_c = std::ffi::CString::new(source.base.id.clone()).unwrap();
-                    (iface.queue_action)(
-                        actor_c.as_ptr(),
-                        crate::ffi::ActionId::Harvest as u32,
-                        target_c.as_ptr(),
-                        0,
-                        0,
-                    );
-                }
-            }
+            crate::ffi::with_host_interface(|iface| {
+                let actor_c = std::ffi::CString::new(self.base.id.clone()).unwrap();
+                let target_c = std::ffi::CString::new(source.base.id.clone()).unwrap();
+                (iface.queue_action)(
+                    actor_c.as_ptr(),
+                    crate::ffi::ActionId::Harvest as u32,
+                    target_c.as_ptr(),
+                    0,
+                    0,
+                );
+            });
             ReturnCode::Ok
         }
         pub fn transfer(
@@ -1542,19 +1595,17 @@ pub mod objects {
             if self.spawning {
                 return ReturnCode::Busy;
             }
-            unsafe {
-                if let Some(ref iface) = crate::ffi::HOST_INTERFACE {
-                    let actor_c = std::ffi::CString::new(self.base.id.clone()).unwrap();
-                    let target_c = std::ffi::CString::new(target.as_ref().id.clone()).unwrap();
-                    (iface.queue_action)(
-                        actor_c.as_ptr(),
-                        crate::ffi::ActionId::Transfer as u32,
-                        target_c.as_ptr(),
-                        resource_type as usize,
-                        amount.unwrap_or(0) as usize,
-                    );
-                }
-            }
+            crate::ffi::with_host_interface(|iface| {
+                let actor_c = std::ffi::CString::new(self.base.id.clone()).unwrap();
+                let target_c = std::ffi::CString::new(target.as_ref().id.clone()).unwrap();
+                (iface.queue_action)(
+                    actor_c.as_ptr(),
+                    crate::ffi::ActionId::Transfer as u32,
+                    target_c.as_ptr(),
+                    resource_type as usize,
+                    amount.unwrap_or(0) as usize,
+                );
+            });
             ReturnCode::Ok
         }
         pub fn withdraw(
@@ -1569,19 +1620,17 @@ pub mod objects {
             if self.spawning {
                 return ReturnCode::Busy;
             }
-            unsafe {
-                if let Some(ref iface) = crate::ffi::HOST_INTERFACE {
-                    let actor_c = std::ffi::CString::new(self.base.id.clone()).unwrap();
-                    let target_c = std::ffi::CString::new(target.as_ref().id.clone()).unwrap();
-                    (iface.queue_action)(
-                        actor_c.as_ptr(),
-                        crate::ffi::ActionId::Withdraw as u32,
-                        target_c.as_ptr(),
-                        resource_type as usize,
-                        amount.unwrap_or(0) as usize,
-                    );
-                }
-            }
+            crate::ffi::with_host_interface(|iface| {
+                let actor_c = std::ffi::CString::new(self.base.id.clone()).unwrap();
+                let target_c = std::ffi::CString::new(target.as_ref().id.clone()).unwrap();
+                (iface.queue_action)(
+                    actor_c.as_ptr(),
+                    crate::ffi::ActionId::Withdraw as u32,
+                    target_c.as_ptr(),
+                    resource_type as usize,
+                    amount.unwrap_or(0) as usize,
+                );
+            });
             ReturnCode::Ok
         }
         pub fn spawning(&self) -> bool {
@@ -2065,7 +2114,10 @@ mod tests {
         assert!(!contains_blocked_tile);
     }
 
+    use serial_test::serial;
+
     #[test]
+    #[serial]
     fn test_search_path_around_terrain_wall() {
         extern "C" fn mock_get_ticks() -> u32 { 0 }
         extern "C" fn mock_get_cpu_time() -> u32 { 0 }
@@ -2124,6 +2176,9 @@ mod tests {
         // Path must detour around the terrain wall at (20, 21-23)
         let contains_terrain_wall = results.path.iter().any(|p| p.x == 20 && (p.y >= 21 && p.y <= 23));
         assert!(!contains_terrain_wall);
+        unsafe {
+            crate::ffi::HOST_INTERFACE = None;
+        }
     }
 
     #[test]
@@ -2246,14 +2301,15 @@ mod tests {
         assert_eq!(creep.body()[6].part(), Part::Heal);
     }
 
+    use std::cell::RefCell;
+
+    thread_local! {
+        static LAST_ACTION: RefCell<Option<(u32, String, String, usize, usize)>> = RefCell::new(None);
+    }
+
     #[test]
+    #[serial]
     fn test_creep_actions_ffi_queueing() {
-        use std::cell::RefCell;
-
-        thread_local! {
-            static LAST_ACTION: RefCell<Option<(u32, String, String, usize, usize)>> = RefCell::new(None);
-        }
-
         extern "C" fn mock_get_ticks() -> u32 { 0 }
         extern "C" fn mock_get_cpu_time() -> u32 { 0 }
         extern "C" fn mock_get_objects(_: u32, _: *mut *const std::ffi::c_void, _: *mut usize) {}
@@ -2297,24 +2353,40 @@ mod tests {
             hits_max: 100,
             my: true,
             spawning: false,
-            body: Vec::new(),
+            body: vec![
+                BodyPart { part: Part::Move, hits: 100 },
+                BodyPart { part: Part::Work, hits: 100 },
+                BodyPart { part: Part::Carry, hits: 100 },
+                BodyPart { part: Part::Attack, hits: 100 },
+                BodyPart { part: Part::RangedAttack, hits: 100 },
+                BodyPart { part: Part::Heal, hits: 100 },
+            ],
         };
 
+        // 1. Move Direction
+        assert_eq!(creep.move_direction(Direction::Top), ReturnCode::Ok);
+        LAST_ACTION.with(|cell| {
+            let (action, actor, target, arg1, _) = cell.borrow().clone().unwrap();
+            assert_eq!(action, crate::ffi::ActionId::Move as u32);
+            assert_eq!(actor, "c1");
+            assert_eq!(target, "");
+            assert_eq!(arg1, Direction::Top as usize);
+        });
+
+        // 2. Attack
         let target_creep = Creep {
             base: GameObject {
                 id: "c2".to_string(),
-                x: 10,
-                y: 11,
+                x: 11,
+                y: 10,
             },
             fatigue: 0,
             hits: 100,
             hits_max: 100,
             my: false,
             spawning: false,
-            body: Vec::new(),
+            body: vec![],
         };
-
-        // 1. Attack
         assert_eq!(creep.attack(&target_creep), ReturnCode::Ok);
         LAST_ACTION.with(|cell| {
             let (action, actor, target, _, _) = cell.borrow().clone().unwrap();
@@ -2323,22 +2395,13 @@ mod tests {
             assert_eq!(target, "c2");
         });
 
-        // 2. Ranged Attack
+        // 3. Ranged Attack
         assert_eq!(creep.ranged_attack(&target_creep), ReturnCode::Ok);
         LAST_ACTION.with(|cell| {
             let (action, actor, target, _, _) = cell.borrow().clone().unwrap();
             assert_eq!(action, crate::ffi::ActionId::RangedAttack as u32);
             assert_eq!(actor, "c1");
             assert_eq!(target, "c2");
-        });
-
-        // 3. Ranged Mass Attack
-        assert_eq!(creep.ranged_mass_attack(), ReturnCode::Ok);
-        LAST_ACTION.with(|cell| {
-            let (action, actor, target, _, _) = cell.borrow().clone().unwrap();
-            assert_eq!(action, crate::ffi::ActionId::RangedMassAttack as u32);
-            assert_eq!(actor, "c1");
-            assert_eq!(target, "");
         });
 
         // 4. Heal
@@ -2391,5 +2454,56 @@ mod tests {
             assert_eq!(arg1, ResourceType::Energy as usize);
             assert_eq!(arg2, 100);
         });
+
+        // 8. Move To
+        let creep_no_move = Creep {
+            base: GameObject {
+                id: "c_no_move".to_string(),
+                x: 10,
+                y: 10,
+            },
+            fatigue: 0,
+            hits: 100,
+            hits_max: 100,
+            my: true,
+            spawning: false,
+            body: Vec::new(),
+        };
+
+        let creep_with_move = Creep {
+            base: GameObject {
+                id: "c_move".to_string(),
+                x: 10,
+                y: 10,
+            },
+            fatigue: 0,
+            hits: 100,
+            hits_max: 100,
+            my: true,
+            spawning: false,
+            body: vec![BodyPart {
+                part: Part::Move,
+                hits: 100,
+            }],
+        };
+
+        let move_target = Position { x: 15, y: 10 };
+
+        assert_eq!(creep_no_move.move_to(&move_target, None), ReturnCode::NoBodypart);
+
+        LAST_ACTION.with(|cell| *cell.borrow_mut() = None);
+        assert_eq!(creep_with_move.move_to(&move_target, None), ReturnCode::Ok);
+
+        LAST_ACTION.with(|cell| {
+            if let Some((action, actor, _target, arg1, _arg2)) = cell.borrow().clone() {
+                assert_eq!(action, crate::ffi::ActionId::Move as u32);
+                assert_eq!(actor, "c_move");
+                assert!(arg1 == Direction::Right as usize || arg1 == Direction::TopRight as usize);
+            }
+        });
+
+        unsafe {
+            crate::ffi::HOST_INTERFACE = None;
+        }
     }
 }

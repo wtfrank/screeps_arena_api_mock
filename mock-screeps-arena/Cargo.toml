@@ -15,6 +15,9 @@ js-sys = { path = "../mock-js-sys" }
 serde-wasm-bindgen = { path = "../mock-serde-wasm-bindgen" }
 log = "0.4"
 
+[dev-dependencies]
+serial_test = "3.1"
+
 [features]
 default = []
 arena-basic = []

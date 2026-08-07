@@ -770,6 +770,7 @@ pub mod game {
 
             let plain_cost = options.and_then(|o| o.plain_cost.get()).unwrap_or(2) as u32;
             let swamp_cost = options.and_then(|o| o.swamp_cost.get()).unwrap_or(10) as u32;
+            let heuristic_weight = options.and_then(|o| o.heuristic_weight.get()).unwrap_or(1.2);
             let max_ops = options.and_then(|o| o.max_ops.get()).unwrap_or(50000);
             let flee = options.and_then(|o| o.flee.get()).unwrap_or(false);
             let custom_cm: Option<CostMatrix> = options.and_then(|o| o.cost_matrix.borrow().clone());
@@ -801,11 +802,11 @@ pub mod game {
                 };
             }
 
-            let heuristic = |pos: Position| -> u32 {
-                let mut min_h = u32::MAX;
+            let heuristic = |pos: Position| -> f64 {
+                let mut min_h = f64::MAX;
                 for g in &goals {
-                    let dx = pos.x.abs_diff(g.pos.x) as u32;
-                    let dy = pos.y.abs_diff(g.pos.y) as u32;
+                    let dx = pos.x.abs_diff(g.pos.x) as f64;
+                    let dy = pos.y.abs_diff(g.pos.y) as f64;
                     let dist = dx.max(dy);
                     if dist < min_h {
                         min_h = dist;
@@ -817,7 +818,7 @@ pub mod game {
             #[derive(Copy, Clone, Eq, PartialEq)]
             struct State {
                 cost: u32,
-                estimated_total: u32,
+                estimated_total: u64,
                 pos: Position,
             }
 
@@ -839,14 +840,27 @@ pub mod game {
             let mut came_from: HashMap<Position, Position> = HashMap::new();
 
             g_score.insert(start, 0);
+            let start_h = heuristic(start);
             open_set.push(State {
                 cost: 0,
-                estimated_total: heuristic(start),
+                estimated_total: ((start_h * heuristic_weight) * 1000.0) as u64,
                 pos: start,
             });
 
             let mut ops = 0;
             let mut best_target: Option<Position> = None;
+
+            // Screeps directional iteration order: Top, TopRight, Right, BottomRight, Bottom, BottomLeft, Left, TopLeft
+            let directions = [
+                (0, -1),  // Top
+                (1, -1),  // TopRight
+                (1, 0),   // Right
+                (1, 1),   // BottomRight
+                (0, 1),   // Bottom
+                (-1, 1),  // BottomLeft
+                (-1, 0),  // Left
+                (-1, -1), // TopLeft
+            ];
 
             while let Some(State { cost, pos, .. }) = open_set.pop() {
                 ops += 1;
@@ -865,51 +879,47 @@ pub mod game {
                     }
                 }
 
-                // Check 8-way adjacent directions
-                for dx in [-1i32, 0, 1] {
-                    for dy in [-1i32, 0, 1] {
-                        if dx == 0 && dy == 0 {
-                            continue;
-                        }
-                        let nx = pos.x as i32 + dx;
-                        let ny = pos.y as i32 + dy;
-                        if nx < 0 || nx >= 100 || ny < 0 || ny >= 100 {
-                            continue;
-                        }
-                        let neighbor = Position { x: nx as u8, y: ny as u8 };
+                for (dx, dy) in directions {
+                    let nx = pos.x as i32 + dx;
+                    let ny = pos.y as i32 + dy;
+                    if nx < 0 || nx >= 100 || ny < 0 || ny >= 100 {
+                        continue;
+                    }
+                    let neighbor = Position { x: nx as u8, y: ny as u8 };
 
-                        // Tile cost calculation
-                        let tile_cost = if let Some(cm) = custom_cm.as_ref() {
-                            let custom_c = cm.get(neighbor.x, neighbor.y);
-                            if custom_c == 255 {
-                                continue; // Impassable
-                            } else if custom_c > 0 {
-                                custom_c as u32
-                            } else {
-                                match crate::game::utils::get_terrain_at_pos(neighbor.x, neighbor.y) {
-                                    crate::constants::Terrain::Wall => continue,
-                                    crate::constants::Terrain::Swamp => swamp_cost,
-                                    _ => plain_cost,
-                                }
-                            }
+                    // Tile cost calculation
+                    let tile_cost = if let Some(cm) = custom_cm.as_ref() {
+                        let custom_c = cm.get(neighbor.x, neighbor.y);
+                        if custom_c == 255 {
+                            continue; // Impassable
+                        } else if custom_c > 0 {
+                            custom_c as u32
                         } else {
                             match crate::game::utils::get_terrain_at_pos(neighbor.x, neighbor.y) {
                                 crate::constants::Terrain::Wall => continue,
                                 crate::constants::Terrain::Swamp => swamp_cost,
                                 _ => plain_cost,
                             }
-                        };
-
-                        let tentative_g = cost + tile_cost;
-                        if tentative_g < *g_score.get(&neighbor).unwrap_or(&u32::MAX) {
-                            came_from.insert(neighbor, pos);
-                            g_score.insert(neighbor, tentative_g);
-                            open_set.push(State {
-                                cost: tentative_g,
-                                estimated_total: tentative_g + heuristic(neighbor),
-                                pos: neighbor,
-                            });
                         }
+                    } else {
+                        match crate::game::utils::get_terrain_at_pos(neighbor.x, neighbor.y) {
+                            crate::constants::Terrain::Wall => continue,
+                            crate::constants::Terrain::Swamp => swamp_cost,
+                            _ => plain_cost,
+                        }
+                    };
+
+                    let tentative_g = cost + tile_cost;
+                    if tentative_g < *g_score.get(&neighbor).unwrap_or(&u32::MAX) {
+                        came_from.insert(neighbor, pos);
+                        g_score.insert(neighbor, tentative_g);
+                        let h_val = heuristic(neighbor);
+                        let f_score = ((tentative_g as f64 + h_val * heuristic_weight) * 1000.0) as u64;
+                        open_set.push(State {
+                            cost: tentative_g,
+                            estimated_total: f_score,
+                            pos: neighbor,
+                        });
                     }
                 }
             }

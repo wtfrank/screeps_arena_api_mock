@@ -4,6 +4,16 @@ pub mod constants {
     use serde::{Deserialize, Serialize};
 
     pub const SPAWN_RANGE: u32 = 20;
+    pub const DEFAULT_SPAWN_DIRECTIONS: [Direction; 8] = [
+        Direction::Top,
+        Direction::TopRight,
+        Direction::Right,
+        Direction::BottomRight,
+        Direction::Bottom,
+        Direction::BottomLeft,
+        Direction::Left,
+        Direction::TopLeft,
+    ];
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
     pub enum Direction {
@@ -1143,7 +1153,7 @@ pub mod objects {
         }
     }
 
-    define_mock_struct!(StructureSpawn, { hits: u32, hits_max: u32, energy: u32, energy_max: u32, my: Option<bool>, spawning: Option<Spawning>, next_id: String });
+    define_mock_struct!(StructureSpawn, { hits: u32, hits_max: u32, energy: u32, energy_max: u32, my: Option<bool>, spawning: Option<Spawning>, next_id: String, directions: Vec<Direction> });
 
     impl OwnedStructureProperties for StructureSpawn {
         fn my(&self) -> Option<bool> {
@@ -1157,6 +1167,28 @@ pub mod objects {
         }
         pub fn next_id(&self) -> String {
             self.next_id.clone()
+        }
+        pub fn directions(&self) -> Vec<Direction> {
+            self.directions.clone()
+        }
+        pub fn set_directions(&mut self, directions: &[Direction]) -> ReturnCode {
+            if self.my != Some(true) {
+                return ReturnCode::NotOwner;
+            }
+            if self.spawning.is_some() {
+                return ReturnCode::Busy;
+            }
+            if directions.len() != 8 {
+                return ReturnCode::InvalidArgs;
+            }
+            let mut seen = std::collections::HashSet::new();
+            for &d in directions {
+                if !seen.insert(d as u8) {
+                    return ReturnCode::InvalidArgs;
+                }
+            }
+            self.directions = directions.to_vec();
+            ReturnCode::Ok
         }
 
         pub fn spawn_creep(&self, body: &[Part]) -> Result<Creep, ReturnCode> {
@@ -2349,6 +2381,7 @@ mod tests {
             my: Some(true),
             spawning: None,
             next_id: "creep1".to_string(),
+            directions: crate::constants::DEFAULT_SPAWN_DIRECTIONS.to_vec(),
         };
 
         let body = vec![Part::Move, Part::Work, Part::Carry, Part::Attack, Part::RangedAttack, Part::Tough, Part::Heal];

@@ -2148,7 +2148,7 @@ pub mod objects {
             PATH_CACHE.with(|cache_cell| {
                 let cache = cache_cell.borrow();
                 if let Some(cached) = cache.get(&creep_id) {
-                    if cached.target_pos == target_pos && current_tick < cached.tick + 5 {
+                    if cached.target_pos == target_pos && current_tick <= cached.tick + 5 {
                         if let Some(idx) = cached.path.iter().position(|p| *p == my_pos) {
                             if idx + 1 < cached.path.len() {
                                 let step = cached.path[idx + 1];

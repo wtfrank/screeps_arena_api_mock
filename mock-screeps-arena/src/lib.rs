@@ -1,5 +1,6 @@
 pub mod ffi;
 pub mod pf_cc;
+pub mod pf_cc_heap;
 
 pub mod constants {
     use serde::{Deserialize, Serialize};
@@ -2103,7 +2104,6 @@ pub mod objects {
                 path: Vec<Position>,
                 tick: u32,
             }
-
             thread_local! {
                 static PATH_CACHE: std::cell::RefCell<std::collections::HashMap<String, CachedCreepPath>> = std::cell::RefCell::new(std::collections::HashMap::new());
             }
@@ -2150,7 +2150,8 @@ pub mod objects {
                         if let Some(idx) = cached.path.iter().position(|p| *p == my_pos) {
                             if idx + 1 < cached.path.len() {
                                 let step = cached.path[idx + 1];
-                                if !creep_obs.contains(&(step.x, step.y)) {
+                                let is_blocked = creep_obs.contains(&(step.x, step.y)) || static_obs.contains(&(step.x, step.y));
+                                if !is_blocked {
                                     cached_next_step = Some(step);
                                 }
                             }

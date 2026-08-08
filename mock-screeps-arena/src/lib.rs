@@ -533,10 +533,12 @@ pub mod game {
         pub fn get_terrain_at_pos(x: u8, y: u8) -> crate::constants::Terrain {
             crate::ffi::with_host_interface(|iface| {
                 let code = (iface.get_terrain_at)(x, y);
-                match code {
-                    1 => crate::constants::Terrain::Wall,
-                    2 => crate::constants::Terrain::Swamp,
-                    _ => crate::constants::Terrain::Plain,
+                if code & 1 != 0 {
+                    crate::constants::Terrain::Wall
+                } else if code & 2 != 0 {
+                    crate::constants::Terrain::Swamp
+                } else {
+                    crate::constants::Terrain::Plain
                 }
             })
             .unwrap_or(crate::constants::Terrain::Plain)

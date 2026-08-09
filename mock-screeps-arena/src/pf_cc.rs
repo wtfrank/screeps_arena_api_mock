@@ -7,42 +7,34 @@ use crate::game::pathfinder::{CostMatrix, GoalSpec, Position, SearchPathOptions,
 use crate::pf_cc_heap::{OpenClosedList, PfCcHeap};
 use crate::traits::HasPosition;
 
+const ROOM_WIDTH: u8 = 100;
+const ROOM_HEIGHT: u8 = 100;
+
 #[inline]
 fn pos_index(pos: Position) -> usize {
-    let room_x = (pos.x / 50) as usize;
-    let room_y = (pos.y / 50) as usize;
-    let room_index = room_x * 2 + room_y;
-    let local_x = (pos.x % 50) as usize;
-    let local_y = (pos.y % 50) as usize;
-    room_index * 2500 + local_x * 50 + local_y
+    (pos.x as usize) * (ROOM_HEIGHT as usize) + (pos.y as usize)
 }
 
 #[inline]
 fn pos_from_index(idx: usize) -> Position {
-    let room_index = idx / 2500;
-    let coord = idx % 2500;
-    let room_x = (room_index / 2) as u8;
-    let room_y = (room_index % 2) as u8;
-    let local_x = (coord / 50) as u8;
-    let local_y = (coord % 50) as u8;
     Position {
-        x: room_x * 50 + local_x,
-        y: room_y * 50 + local_y,
+        x: (idx / (ROOM_HEIGHT as usize)) as u8,
+        y: (idx % (ROOM_HEIGHT as usize)) as u8,
     }
 }
 
 fn is_border_pos(val: u8) -> bool {
-    (val as u32 + 1) % 50 < 2
+    val == 0 || val == ROOM_WIDTH - 1
 }
 
 fn is_near_border_pos(val: u8) -> bool {
-    (val as u32 + 2) % 50 < 4
+    val <= 1 || val >= ROOM_WIDTH - 2
 }
 
 // Safe look with bounds check (returns None for out-of-bounds)
 #[inline]
 fn look_at<L: Fn(u8, u8) -> Option<u32>>(ix: i32, iy: i32, look: &L) -> Option<u32> {
-    if ix < 0 || ix >= 100 || iy < 0 || iy >= 100 {
+    if ix < 0 || ix >= ROOM_WIDTH as i32 || iy < 0 || iy >= ROOM_HEIGHT as i32 {
         None
     } else {
         look(ix as u8, iy as u8)
@@ -362,8 +354,8 @@ pub fn search_path_pf_cc(
 
         let cost = look(pos.x, pos.y).unwrap_or(plain_cost);
 
-        let border_dx: i32 = if pos.x % 50 == 1 { -1 } else if pos.x % 50 == 48 { 1 } else { 0 };
-        let border_dy: i32 = if pos.y % 50 == 1 { -1 } else if pos.y % 50 == 48 { 1 } else { 0 };
+        let border_dx: i32 = if pos.x == 1 { -1 } else if pos.x == ROOM_WIDTH - 2 { 1 } else { 0 };
+        let border_dy: i32 = if pos.y == 1 { -1 } else if pos.y == ROOM_HEIGHT - 2 { 1 } else { 0 };
 
         let mut do_jump_neighbor = |
             heap: &mut PfCcHeap,

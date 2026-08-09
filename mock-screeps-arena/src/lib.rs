@@ -699,12 +699,12 @@ pub mod game {
             }
             pub fn set(&mut self, x: u8, y: u8, cost: u8) {
                 if (x as usize) < 100 && (y as usize) < 100 {
-                    self.bits[(y as usize) * 100 + (x as usize)] = cost;
+                    self.bits[(x as usize) * 100 + (y as usize)] = cost;
                 }
             }
             pub fn get(&self, x: u8, y: u8) -> u8 {
                 if (x as usize) < 100 && (y as usize) < 100 && !self.bits.is_empty() {
-                    self.bits[(y as usize) * 100 + (x as usize)]
+                    self.bits[(x as usize) * 100 + (y as usize)]
                 } else {
                     0
                 }
@@ -2101,20 +2101,7 @@ pub mod objects {
                 return ReturnCode::Ok;
             }
 
-            struct CachedCreepPath {
-                target_pos: Position,
-                path: Vec<Position>,
-                tick: u32,
-            }
-            thread_local! {
-                static PATH_CACHE: std::cell::RefCell<std::collections::HashMap<String, CachedCreepPath>> = std::cell::RefCell::new(std::collections::HashMap::new());
-            }
-
-            let current_tick = crate::game::utils::get_ticks();
-            let creep_id = self.base.id.clone();
-
-            // Helper to collect obstacles for validation
-            let get_obstacles = |c_id: &str| -> (std::collections::HashSet<(u8, u8)>, std::collections::HashSet<(u8, u8)>) {
+            let get_obstacles = || -> (std::collections::HashSet<(u8, u8)>, std::collections::HashSet<(u8, u8)>) {
                 let mut static_obs = std::collections::HashSet::new();
                 let mut creep_obs = std::collections::HashSet::new();
                 let has_host = crate::ffi::with_host_interface(|_| ()).is_some();
@@ -2133,80 +2120,33 @@ pub mod objects {
                     }
                     if let Ok(creeps) = std::panic::catch_unwind(|| crate::game::utils::get_objects_by_prototype(crate::constants::prototypes::CREEP)) {
                         for c in creeps {
-                            if c.base.id != c_id {
-                                creep_obs.insert((c.base.x, c.base.y));
-                            }
+                            creep_obs.insert((c.base.x, c.base.y));
                         }
                     }
                 }
                 (static_obs, creep_obs)
             };
-            let (static_obs, creep_obs) = get_obstacles(&creep_id);
+            let (static_obs, creep_obs) = get_obstacles();
 
-            // Attempt to reuse cached path (default reusePath = 5 ticks in Screeps)
-            let mut cached_next_step: Option<Position> = None;
-            PATH_CACHE.with(|cache_cell| {
-                let cache = cache_cell.borrow();
-                if let Some(cached) = cache.get(&creep_id) {
-                    if cached.target_pos == target_pos && current_tick <= cached.tick + 5 {
-                        if let Some(idx) = cached.path.iter().position(|p| *p == my_pos) {
-                            if idx + 1 < cached.path.len() {
-                                let step = cached.path[idx + 1];
-                                let is_blocked = creep_obs.contains(&(step.x, step.y)) || static_obs.contains(&(step.x, step.y));
-                                if !is_blocked {
-                                    cached_next_step = Some(step);
-                                }
-                            }
-                        }
-                    }
-                }
-            });
+            // Build CostMatrix populating static obstacles and all creeps as cost 255
+            let mut cm = crate::game::pathfinder::CostMatrix::new();
+            for &(ox, oy) in &static_obs {
+                cm.set(ox, oy, 255);
+            }
+            for &(ox, oy) in &creep_obs {
+                cm.set(ox, oy, 255);
+            }
 
-            let next_step = if let Some(step) = cached_next_step {
-                step
-            } else {
-                // Build CostMatrix populating static obstacles and other creeps as cost 255
-                let mut cm = crate::game::pathfinder::CostMatrix::new();
-                for &(ox, oy) in &static_obs {
-                    cm.set(ox, oy, 255);
-                }
-                for &(ox, oy) in &creep_obs {
-                    cm.set(ox, oy, 255);
-                }
+            let opts = crate::game::pathfinder::SearchPathOptions::new();
+            opts.cost_matrix(&cm);
 
-                // Target tile should be passable even if occupied (e.g. attacking enemy spawn/creep)
-                cm.set(target_pos.x, target_pos.y, 0);
+            let origin_js = serde_wasm_bindgen::to_value(&my_pos).unwrap_or(wasm_bindgen::JsValue::UNDEFINED);
+            let goal_js = serde_wasm_bindgen::to_value(&target_pos).unwrap_or(wasm_bindgen::JsValue::UNDEFINED);
+            let search_results = crate::game::pathfinder::search_path(&origin_js, &goal_js, Some(&opts));
 
-                let opts = crate::game::pathfinder::SearchPathOptions::new();
-                opts.cost_matrix(&cm);
-
-                let is_target_obstacle = static_obs.contains(&(target_pos.x, target_pos.y));
-                let origin_js = serde_wasm_bindgen::to_value(&my_pos).unwrap_or(wasm_bindgen::JsValue::UNDEFINED);
-                let goal_js = if is_target_obstacle {
-                    let spec = crate::game::pathfinder::GoalSpec { pos: target_pos, range: 1 };
-                    serde_wasm_bindgen::to_value(&spec).unwrap_or(wasm_bindgen::JsValue::UNDEFINED)
-                } else {
-                    serde_wasm_bindgen::to_value(&target_pos).unwrap_or(wasm_bindgen::JsValue::UNDEFINED)
-                };
-                let search_results = crate::game::pathfinder::search_path(&origin_js, &goal_js, Some(&opts));
-
-                if let Some(&first_step) = search_results.path.first() {
-                    // Prepend current position to full path and store in cache
-                    let mut full_path = vec![my_pos];
-                    full_path.extend(search_results.path.clone());
-
-                    PATH_CACHE.with(|cache_cell| {
-                        cache_cell.borrow_mut().insert(creep_id.clone(), CachedCreepPath {
-                            target_pos,
-                            path: full_path,
-                            tick: current_tick,
-                        });
-                    });
-
-                    first_step
-                } else {
-                    my_pos
-                }
+            let next_step = match search_results.path.first() {
+                Some(&step) => step,
+                None => return ReturnCode::Ok,
             };
 
             let dx = next_step.x as i32 - my_pos.x as i32;

@@ -440,6 +440,10 @@ impl Creep {
         if self.fatigue > 0 {
             return ReturnCode::Tired;
         }
+        let has_move_part = self.body.iter().any(|p| p.hits > 0 && p.part == Part::Move);
+        if !has_move_part {
+            return ReturnCode::NoBodypart;
+        }
 
         crate::ffi::with_host_interface(|iface| {
             let actor_c = std::ffi::CString::new(self.base.id.clone()).unwrap();
@@ -453,90 +457,30 @@ impl Creep {
         });
         ReturnCode::Ok
     }
-    pub fn move_to(&self, target: &impl HasPosition, _options: Option<&Object>) -> ReturnCode {
-        if !self.my {
-            return ReturnCode::NotOwner;
+    pub fn move_to(
+        &self,
+        target: &impl HasPosition,
+        options: Option<&crate::game::pathfinder::FindPathOptions>,
+    ) -> ReturnCode {
+        let result = self.find_path_to(target, options);
+        if let Some(first_step) = result.path.first() {
+            let dx = first_step.x as i32 - self.x as i32;
+            let dy = first_step.y as i32 - self.y as i32;
+            let direction = match (dx.signum(), dy.signum()) {
+                (0, -1) => Direction::Top,
+                (1, -1) => Direction::TopRight,
+                (1, 0) => Direction::Right,
+                (1, 1) => Direction::BottomRight,
+                (0, 1) => Direction::Bottom,
+                (-1, 1) => Direction::BottomLeft,
+                (-1, 0) => Direction::Left,
+                (-1, -1) => Direction::TopLeft,
+                _ => return ReturnCode::Ok,
+            };
+            self.move_direction(direction)
+        } else {
+            ReturnCode::Ok
         }
-        if self.spawning {
-            return ReturnCode::Busy;
-        }
-        if self.fatigue > 0 {
-            return ReturnCode::Tired;
-        }
-        let has_move_part = self.body.iter().any(|p| p.hits > 0 && p.part == Part::Move);
-        if !has_move_part {
-            return ReturnCode::NoBodypart;
-        }
-
-        let my_pos = self.pos();
-        let target_pos = target.pos();
-        if my_pos == target_pos {
-            return ReturnCode::Ok;
-        }
-
-        let get_obstacles = || -> (std::collections::HashSet<(u8, u8)>, std::collections::HashSet<(u8, u8)>) {
-            let mut static_obs = std::collections::HashSet::new();
-            let mut creep_obs = std::collections::HashSet::new();
-            let has_host = crate::ffi::with_host_interface(|_| ()).is_some();
-            if has_host {
-                if let Ok(spawns) = std::panic::catch_unwind(|| crate::game::utils::get_objects_by_prototype(crate::constants::prototypes::STRUCTURE_SPAWN)) {
-                    for s in spawns { static_obs.insert((s.base.x, s.base.y)); }
-                }
-                if let Ok(towers) = std::panic::catch_unwind(|| crate::game::utils::get_objects_by_prototype(crate::constants::prototypes::STRUCTURE_TOWER)) {
-                    for t in towers { static_obs.insert((t.base.x, t.base.y)); }
-                }
-                if let Ok(exts) = std::panic::catch_unwind(|| crate::game::utils::get_objects_by_prototype(crate::constants::prototypes::STRUCTURE_EXTENSION)) {
-                    for e in exts { static_obs.insert((e.base.x, e.base.y)); }
-                }
-                if let Ok(walls) = std::panic::catch_unwind(|| crate::game::utils::get_objects_by_prototype(crate::constants::prototypes::STRUCTURE_WALL)) {
-                    for w in walls { static_obs.insert((w.base.x, w.base.y)); }
-                }
-                if let Ok(creeps) = std::panic::catch_unwind(|| crate::game::utils::get_objects_by_prototype(crate::constants::prototypes::CREEP)) {
-                    for c in creeps {
-                        creep_obs.insert((c.base.x, c.base.y));
-                    }
-                }
-            }
-            (static_obs, creep_obs)
-        };
-        let (static_obs, creep_obs) = get_obstacles();
-
-        // Build CostMatrix populating static obstacles and all creeps as cost 255
-        let mut cm = crate::game::pathfinder::CostMatrix::new();
-        for &(ox, oy) in &static_obs {
-            cm.set(ox, oy, 255);
-        }
-        for &(ox, oy) in &creep_obs {
-            cm.set(ox, oy, 255);
-        }
-
-        let opts = crate::game::pathfinder::SearchPathOptions::new();
-        opts.cost_matrix(&cm);
-
-        let origin_js = serde_wasm_bindgen::to_value(&my_pos).unwrap_or(wasm_bindgen::JsValue::UNDEFINED);
-        let goal_js = serde_wasm_bindgen::to_value(&target_pos).unwrap_or(wasm_bindgen::JsValue::UNDEFINED);
-        let search_results = crate::game::pathfinder::search_path(&origin_js, &goal_js, Some(&opts));
-
-        let next_step = match search_results.path.first() {
-            Some(&step) => step,
-            None => return ReturnCode::Ok,
-        };
-
-        let dx = next_step.x as i32 - my_pos.x as i32;
-        let dy = next_step.y as i32 - my_pos.y as i32;
-
-        let direction = match (dx.signum(), dy.signum()) {
-            (0, -1) => Direction::Top,
-            (1, -1) => Direction::TopRight,
-            (1, 0) => Direction::Right,
-            (1, 1) => Direction::BottomRight,
-            (0, 1) => Direction::Bottom,
-            (-1, 1) => Direction::BottomLeft,
-            (-1, 0) => Direction::Left,
-            (-1, -1) => Direction::TopLeft,
-            _ => return ReturnCode::Ok,
-        };
-        self.move_direction(direction)
     }
     pub fn attack(&self, target: &impl Attackable) -> ReturnCode {
         if !self.my {

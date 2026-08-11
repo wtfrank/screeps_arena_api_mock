@@ -27,7 +27,7 @@ pub trait HasStore {
     fn store(&self) -> Store;
 }
 
-pub trait GameObjectProperties {
+pub trait GameObjectProperties: HasPosition {
     fn exists(&self) -> bool;
     fn id(&self) -> JsString;
     fn x(&self) -> u8;
@@ -35,10 +35,10 @@ pub trait GameObjectProperties {
     fn ticks_to_decay(&self) -> Option<u32>;
     fn find_path_to(
         &self,
-        _pos: &Object,
-        _options: Option<&crate::game::pathfinder::FindPathOptions>,
-    ) -> Array {
-        Array
+        pos: &impl HasPosition,
+        options: Option<&crate::game::pathfinder::FindPathOptions>,
+    ) -> crate::game::pathfinder::SearchResults {
+        crate::utils::find_path(self, pos, options)
     }
     fn find_in_range<T>(&self, _positions: &[T], _range: u8) -> Vec<T>
     where

@@ -201,8 +201,8 @@ pub fn create_construction_site(
 }
 
 pub fn find_path(
-    from_pos: &impl crate::traits::HasPosition,
-    to_pos: &impl crate::traits::HasPosition,
+    from_pos: &(impl crate::traits::HasPosition + ?Sized),
+    to_pos: &(impl crate::traits::HasPosition + ?Sized),
     options: Option<&crate::game::pathfinder::FindPathOptions>,
 ) -> crate::game::pathfinder::SearchResults {
     use crate::game::pathfinder::{GoalSpec, SearchPathOptions, search_path};

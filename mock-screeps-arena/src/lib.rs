@@ -185,6 +185,23 @@ mod tests {
         assert!(!result.incomplete);
         assert!(!result.path.is_empty());
         assert_eq!(result.path.last().unwrap(), &to);
+
+        let creep = Creep {
+            base: GameObject {
+                id: "c_find_path_to".to_string(),
+                x: 10,
+                y: 10,
+            },
+            fatigue: 0,
+            hits: 100,
+            hits_max: 100,
+            my: true,
+            spawning: false,
+            body: Vec::new(),
+        };
+        let res_to = creep.find_path_to(&to, None);
+        assert!(!res_to.incomplete);
+        assert_eq!(res_to.path.len(), 3);
     }
 
     #[test]

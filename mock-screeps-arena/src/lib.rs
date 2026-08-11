@@ -795,7 +795,7 @@ mod tests {
             let js_origin = serde_wasm_bindgen::to_value(&start).unwrap();
             let js_goal = serde_wasm_bindgen::to_value(&goal).unwrap();
 
-            let res = crate::pf_cc::search_path_pf_cc(&js_origin, &js_goal, Some(&opts));
+            let res = search_path(&js_origin, &js_goal, Some(&opts));
 
             let mut path_matches = true;
             if let Some(ref_path_arr) = test["path"].as_array() {

@@ -1051,5 +1051,85 @@ pub fn search_path(
     goal: &wasm_bindgen::JsValue,
     options: Option<&SearchPathOptions>,
 ) -> SearchResults {
-    crate::pf_cc::search_path_pf_cc(origin, goal, options)
+    use crate::traits::HasPosition;
+
+    let start = if let Ok(pos) = serde_wasm_bindgen::from_value::<Position>(origin.clone()) {
+        pos
+    } else {
+        unsafe {
+            let go = &*(origin as *const wasm_bindgen::JsValue as *const crate::objects::GameObject);
+            go.pos()
+        }
+    };
+
+    // Bounds check matching game.path-finder.search-path.js: origin out of bounds returns empty search result
+    if start.x > 99 || start.y > 99 {
+        return SearchResults {
+            path: Vec::new(),
+            ops: 0,
+            cost: 0,
+            incomplete: false,
+        };
+    }
+
+    // Default & option clamping matching game.path-finder.search-path.js:
+    // plainCost: min(254, max(1, plain_cost || 2))
+    // swampCost: min(254, max(1, swamp_cost || 10))
+    // heuristicWeight: min(9.0, max(1.0, heuristic_weight || 1.2))
+    // maxOps: max(1, max_ops || 10000)
+    let plain_cost = options
+        .and_then(|o| o.plain_cost.get())
+        .map(|c| c.clamp(1, 254))
+        .unwrap_or(2) as u32;
+
+    let swamp_cost = options
+        .and_then(|o| o.swamp_cost.get())
+        .map(|c| c.clamp(1, 254))
+        .unwrap_or(10) as u32;
+
+    let heuristic_weight = options
+        .and_then(|o| o.heuristic_weight.get())
+        .map(|w| w.clamp(1.0, 9.0))
+        .unwrap_or(1.2);
+
+    let max_ops = options
+        .and_then(|o| o.max_ops.get())
+        .map(|o| o.max(1))
+        .unwrap_or(10000);
+
+    let flee = options.and_then(|o| o.flee.get()).unwrap_or(false);
+    let custom_cm: Option<CostMatrix> = options.and_then(|o| o.cost_matrix.borrow().clone());
+
+    // Normalize one-or-many goals into Vec<GoalSpec>
+    let mut goals: Vec<GoalSpec> = Vec::new();
+    if let Ok(single) = serde_wasm_bindgen::from_value::<GoalSpec>(goal.clone()) {
+        goals.push(single);
+    } else if let Ok(pos) = serde_wasm_bindgen::from_value::<Position>(goal.clone()) {
+        goals.push(GoalSpec { pos, range: 0 });
+    } else if let Ok(multi) = serde_wasm_bindgen::from_value::<Vec<GoalSpec>>(goal.clone()) {
+        goals = multi;
+    } else if let Ok(multi_pos) = serde_wasm_bindgen::from_value::<Vec<Position>>(goal.clone()) {
+        goals = multi_pos.into_iter().map(|pos| GoalSpec { pos, range: 0 }).collect();
+    }
+
+    if goals.is_empty() {
+        return SearchResults {
+            path: Vec::new(),
+            ops: 0,
+            cost: 0,
+            incomplete: false,
+        };
+    }
+
+    // Call underlying C++ / pf_cc search implementation
+    crate::pf_cc::search(
+        start,
+        &goals,
+        plain_cost,
+        swamp_cost,
+        heuristic_weight,
+        max_ops,
+        flee,
+        custom_cm.as_ref(),
+    )
 }

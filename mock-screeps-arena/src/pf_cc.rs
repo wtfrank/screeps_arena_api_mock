@@ -169,46 +169,16 @@ where
     }
 }
 
-pub fn search_path_pf_cc(
-    origin: &wasm_bindgen::JsValue,
-    goal: &wasm_bindgen::JsValue,
-    options: Option<&SearchPathOptions>,
+pub fn search(
+    start: Position,
+    goals: &[GoalSpec],
+    plain_cost: u32,
+    swamp_cost: u32,
+    heuristic_weight: f64,
+    max_ops: u32,
+    flee: bool,
+    custom_cm: Option<&CostMatrix>,
 ) -> SearchResults {
-    let start = if let Ok(pos) = serde_wasm_bindgen::from_value::<Position>(origin.clone()) {
-        pos
-    } else {
-        unsafe {
-            let go = &*(origin as *const wasm_bindgen::JsValue as *const crate::objects::GameObject);
-            go.pos()
-        }
-    };
-
-    let mut goals: Vec<GoalSpec> = Vec::new();
-    if let Ok(single) = serde_wasm_bindgen::from_value::<GoalSpec>(goal.clone()) {
-        goals.push(single);
-    } else if let Ok(pos) = serde_wasm_bindgen::from_value::<Position>(goal.clone()) {
-        goals.push(GoalSpec { pos, range: 0 });
-    } else if let Ok(multi) = serde_wasm_bindgen::from_value::<Vec<GoalSpec>>(goal.clone()) {
-        goals = multi;
-    } else if let Ok(multi_pos) = serde_wasm_bindgen::from_value::<Vec<Position>>(goal.clone()) {
-        goals = multi_pos.into_iter().map(|pos| GoalSpec { pos, range: 0 }).collect();
-    }
-
-    if goals.is_empty() {
-        return SearchResults {
-            path: Vec::new(),
-            ops: 0,
-            cost: 0,
-            incomplete: false,
-        };
-    }
-
-    let plain_cost = options.and_then(|o| o.plain_cost.get()).unwrap_or(2) as u32;
-    let swamp_cost = options.and_then(|o| o.swamp_cost.get()).unwrap_or(10) as u32;
-    let heuristic_weight = options.and_then(|o| o.heuristic_weight.get()).unwrap_or(1.2);
-    let max_ops = options.and_then(|o| o.max_ops.get()).unwrap_or(50000);
-    let flee = options.and_then(|o| o.flee.get()).unwrap_or(false);
-    let custom_cm: Option<CostMatrix> = options.and_then(|o| o.cost_matrix.borrow().clone());
 
     // pf.cc look(): returns None for obstacle, Some(cost) for passable
     let look = |x: u8, y: u8| -> Option<u32> {
@@ -230,7 +200,7 @@ pub fn search_path_pf_cc(
     let heuristic = |pos: Position| -> u32 {
         if flee {
             let mut ret: u32 = 0;
-            for g in &goals {
+            for g in goals {
                 let dist = range_to(pos, g.pos);
                 let r = g.range as u32;
                 if dist < r {
@@ -240,7 +210,7 @@ pub fn search_path_pf_cc(
             ret
         } else {
             let mut ret: u32 = u32::MAX;
-            for g in &goals {
+            for g in goals {
                 let dist = range_to(pos, g.pos);
                 let r = g.range as u32;
                 if dist > r {

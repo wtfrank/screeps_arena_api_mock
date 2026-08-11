@@ -14,7 +14,7 @@ pub mod enums {
 
 pub mod game {
     pub use crate::utils::{
-        arena_info, create_construction_site, get_cpu_time, get_heap_statistics, get_object_by_id,
+        arena_info, create_construction_site, find_path, get_cpu_time, get_heap_statistics, get_object_by_id,
         get_objects, get_objects_by_prototype, get_terrain_at, get_ticks,
     };
 
@@ -174,6 +174,17 @@ mod tests {
         assert!(!results.incomplete);
         assert!(!results.path.is_empty());
         assert_eq!(results.path.last().unwrap(), &Position { x: 9, y: 14 });
+    }
+
+    #[test]
+    fn test_find_path_utility() {
+        let from = Position { x: 10, y: 10 };
+        let to = Position { x: 10, y: 13 };
+
+        let result = crate::game::utils::find_path(&from, &to, None);
+        assert!(!result.incomplete);
+        assert!(!result.path.is_empty());
+        assert_eq!(result.path.last().unwrap(), &to);
     }
 
     #[test]

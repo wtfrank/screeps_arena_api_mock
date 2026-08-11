@@ -199,3 +199,50 @@ pub fn create_construction_site(
 ) -> Result<crate::objects::ConstructionSite, crate::constants::ReturnCode> {
     Err(crate::constants::ReturnCode::Error)
 }
+
+pub fn find_path(
+    from_pos: &impl crate::traits::HasPosition,
+    to_pos: &impl crate::traits::HasPosition,
+    options: Option<&crate::game::pathfinder::FindPathOptions>,
+) -> crate::game::pathfinder::SearchResults {
+    use crate::game::pathfinder::{GoalSpec, SearchPathOptions, search_path};
+
+    let from = from_pos.pos();
+    let to = to_pos.pos();
+
+    // Replicate findPath logic:
+    // If no costMatrix in opts, searchPath is called with range = Math.max(1, opts.range || 0)
+    // Here SearchPathOptions wraps cost_matrix
+    let opts = SearchPathOptions::new();
+    if let Some(find_opts) = options {
+        if let Some(ref cm) = find_opts.cost_matrix {
+            opts.cost_matrix(cm);
+        }
+    }
+
+    let goal = GoalSpec {
+        pos: to,
+        range: 1, // Math.max(1, opts.range || 0) -> default range is 1 in findPath
+    };
+
+    let from_js = serde_wasm_bindgen::to_value(&from).unwrap_or(wasm_bindgen::JsValue::UNDEFINED);
+    let goal_js = serde_wasm_bindgen::to_value(&goal).unwrap_or(wasm_bindgen::JsValue::UNDEFINED);
+
+    let mut result = search_path(&from_js, &goal_js, Some(&opts));
+
+    // Post-processing logic from findPath:
+    // if (!opts.range && ((result.path.length && getDistance(result.path[last], toPos) === 1) || (!result.path.length && getDistance(fromPos, toPos) <= 1))) {
+    //     result.path.push({x: toPos.x, y: toPos.y});
+    // }
+    let dist_from_to = from.x.abs_diff(to.x).max(from.y.abs_diff(to.y));
+    if let Some(last_pos) = result.path.last() {
+        let dist_last_to = last_pos.x.abs_diff(to.x).max(last_pos.y.abs_diff(to.y));
+        if dist_last_to == 1 {
+            result.path.push(to);
+        }
+    } else if dist_from_to <= 1 {
+        result.path.push(to);
+    }
+
+    result
+}

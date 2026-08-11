@@ -2670,7 +2670,7 @@ pub static STRUCTURE_CONTAINER_PROTOTYPE: js_sys::Object = js_sys::Object;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::pathfinder::{CostMatrix, Position, SearchPathOptions, search_path};
+    use crate::game::pathfinder::{CostMatrix, GoalSpec, Position, SearchPathOptions, search_path};
     use crate::objects::{Creep, GameObject};
 
     #[test]
@@ -3207,5 +3207,151 @@ mod tests {
         unsafe {
             crate::ffi::HOST_INTERFACE = None;
         }
+    }
+
+    #[test]
+    fn test_validate_path_tests_ssb5_json() {
+        let path_str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/path_tests_ssb5.json");
+        let file_path = std::path::Path::new(path_str);
+        if !file_path.exists() {
+            return;
+        }
+
+        let content = match std::fs::read_to_string(file_path) {
+            Ok(c) => c,
+            Err(_) => return,
+        };
+        let data: serde_json::Value = match serde_json::from_str(&content) {
+            Ok(d) => d,
+            Err(_) => return,
+        };
+
+        let terrain_str = match data["terrain"].as_str() {
+            Some(s) => s,
+            None => return,
+        };
+        let terrain_bytes: Vec<u8> = terrain_str
+            .bytes()
+            .map(|b| match b {
+                b'1' => 1,
+                b'2' => 2,
+                b'3' => 3,
+                _ => 0,
+            })
+            .collect();
+
+        thread_local! {
+            static TEST_TERRAIN: std::cell::RefCell<Vec<u8>> = std::cell::RefCell::new(Vec::new());
+        }
+        extern "C" fn mock_get_ticks() -> u32 { 1 }
+        extern "C" fn mock_get_cpu_time() -> u32 { 0 }
+        extern "C" fn mock_get_objects(_: u32, _: *mut *const std::os::raw::c_void, _: *mut usize) {}
+        extern "C" fn mock_get_terrain_at(x: u8, y: u8) -> u32 {
+            TEST_TERRAIN.with(|t| {
+                let idx = (y as usize) * 100 + (x as usize);
+                t.borrow().get(idx).copied().unwrap_or(0) as u32
+            })
+        }
+        extern "C" fn mock_queue_action(_: *const std::os::raw::c_char, _: u32, _: *const std::os::raw::c_char, _: usize, _: usize) {}
+
+        TEST_TERRAIN.with(|t| *t.borrow_mut() = terrain_bytes);
+        unsafe {
+            crate::ffi::HOST_INTERFACE = Some(crate::ffi::HostInterface {
+                get_ticks: mock_get_ticks,
+                get_cpu_time: mock_get_cpu_time,
+                get_objects: mock_get_objects,
+                get_terrain_at: mock_get_terrain_at,
+                queue_action: mock_queue_action,
+            });
+        }
+
+        let path_tests = match data["path_tests"].as_array() {
+            Some(arr) => arr,
+            None => return,
+        };
+
+        let mut matched = 0;
+        let mut path_diffs = 0;
+        let mut cost_mismatches = 0;
+        let mut inc_mismatches = 0;
+        let mut len_mismatches = 0;
+        let mut waypoint_diffs = 0;
+
+        for test in path_tests {
+            let ox = test["origin"]["x"].as_u64().unwrap_or(0) as u8;
+            let oy = test["origin"]["y"].as_u64().unwrap_or(0) as u8;
+            let gx = test["goal"]["x"].as_u64().unwrap_or(0) as u8;
+            let gy = test["goal"]["y"].as_u64().unwrap_or(0) as u8;
+            let range = test["range"].as_u64().unwrap_or(0) as u8;
+            let flee = test["flee"].as_bool().unwrap_or(false);
+
+            let ref_cost = test["cost"].as_u64().unwrap_or(0) as u32;
+            let ref_inc = test["incomplete"].as_bool().unwrap_or(false);
+            let ref_path_len = test["path"].as_array().map(|a| a.len()).unwrap_or(0);
+
+            let start = Position { x: ox, y: oy };
+            let goal = GoalSpec {
+                pos: Position { x: gx, y: gy },
+                range,
+            };
+
+            let mut opts = SearchPathOptions::new();
+            opts.flee(flee);
+
+            let js_origin = serde_wasm_bindgen::to_value(&start).unwrap();
+            let js_goal = serde_wasm_bindgen::to_value(&goal).unwrap();
+
+            let res = crate::pf_cc::search_path_pf_cc(&js_origin, &js_goal, Some(&opts));
+
+            let mut path_matches = true;
+            if let Some(ref_path_arr) = test["path"].as_array() {
+                if res.path.len() != ref_path_arr.len() {
+                    path_matches = false;
+                } else {
+                    for (p1, p2) in res.path.iter().zip(ref_path_arr.iter()) {
+                        let rx = p2["x"].as_u64().unwrap_or(0) as u8;
+                        let ry = p2["y"].as_u64().unwrap_or(0) as u8;
+                        if p1.x != rx || p1.y != ry {
+                            path_matches = false;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Standardize u32::MAX for incomplete cost check
+            let expected_ref_cost = if ref_inc && ref_cost == 4294967295 { 0 } else { ref_cost };
+
+            if path_matches && res.cost == expected_ref_cost && res.incomplete == ref_inc {
+                matched += 1;
+            } else {
+                path_diffs += 1;
+                if res.incomplete != ref_inc {
+                    inc_mismatches += 1;
+                } else if res.cost != expected_ref_cost {
+                    cost_mismatches += 1;
+                    println!(
+                        "COST MISMATCH: ox={} oy={} gx={} gy={} range={} flee={} | REF cost={} | OUR cost={}",
+                        ox, oy, gx, gy, range, flee, ref_cost, res.cost
+                    );
+                } else if res.path.len() != ref_path_len {
+                    len_mismatches += 1;
+                    println!(
+                        "LEN MISMATCH: ox={} oy={} gx={} gy={} range={} flee={} | REF len={} cost={} | OUR len={} cost={}",
+                        ox, oy, gx, gy, range, flee, ref_path_len, ref_cost, res.path.len(), res.cost
+                    );
+                } else {
+                    waypoint_diffs += 1;
+                }
+            }
+        }
+
+        println!("\n=== PATH_TEST CATEGORY BREAKDOWN (Out of {} Queries) ===", path_tests.len());
+        println!("  100% Exact Match           : {} ({:.1}%)", matched, matched as f64 / path_tests.len() as f64 * 100.0);
+        println!("  Incomplete Flag Mismatch   : {}", inc_mismatches);
+        println!("  Cost Mismatch              : {}", cost_mismatches);
+        println!("  Path Length Mismatch       : {}", len_mismatches);
+        println!("  Same Cost/Len Waypoint Diff: {}", waypoint_diffs);
+        println!("PATH_TEST Validation Complete: matched={}/{}, path_diffs={}", matched, path_tests.len(), path_diffs);
     }
 }

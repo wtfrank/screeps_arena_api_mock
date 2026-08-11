@@ -831,8 +831,8 @@ mod tests {
                 } else if res.path.len() != ref_path_len {
                     len_mismatches += 1;
                     println!(
-                        "LEN MISMATCH: ox={} oy={} gx={} gy={} range={} flee={} | REF len={} | OUR len={}",
-                        ox, oy, gx, gy, range, flee, ref_path_len, res.path.len()
+                        "LEN MISMATCH: ox={} oy={} gx={} gy={} range={} flee={} | REF len={} cost={} | OUR len={} cost={}",
+                         ox, oy, gx, gy, range, flee, ref_path_len, ref_cost, res.path.len(), res.cost
                     );
                 } else {
                     waypoint_diffs += 1;
@@ -844,7 +844,7 @@ mod tests {
             "\n=== MOCK RUNNER SUMMARY (Out of {} Queries) ===",
             path_tests.len()
         );
-        println!("  100% Exact Match           : {}", matched);
+        println!("  100% Exact Match           : {} ({:.1}%)", matched, matched as f64 / path_tests.len() as f64 * 100.0);
         println!("  Total Differences          : {}", path_diffs);
         println!("  Incomplete Flag Mismatches : {}", inc_mismatches);
         println!("  Cost Mismatches            : {}", cost_mismatches);

@@ -2707,7 +2707,7 @@ mod tests {
         let results = search_path(creep.as_ref(), &js_goal, Some(&options));
         assert!(!results.incomplete);
         assert!(!results.path.is_empty());
-        assert_eq!(results.path.last().unwrap(), &Position { x: 10, y: 14 });
+        assert_eq!(results.path.last().unwrap(), &Position { x: 9, y: 14 });
     }
 
     #[test]

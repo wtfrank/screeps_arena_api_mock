@@ -31,13 +31,15 @@ fn is_near_border_pos(val: u8) -> bool {
     val <= 1 || val >= ROOM_WIDTH - 2
 }
 
-// Safe look with bounds check (returns None for out-of-bounds)
+const OBSTACLE: u32 = u32::MAX;
+
+// Safe look with bounds check returning OBSTACLE for walls / out-of-bounds
 #[inline]
-fn look_at<L: Fn(u8, u8) -> Option<u32>>(ix: i32, iy: i32, look: &L) -> Option<u32> {
+fn look_cost<L: Fn(u8, u8) -> Option<u32>>(ix: i32, iy: i32, look: &L) -> u32 {
     if ix < 0 || ix >= ROOM_WIDTH as i32 || iy < 0 || iy >= ROOM_HEIGHT as i32 {
-        None
+        OBSTACLE
     } else {
-        look(ix as u8, iy as u8)
+        look(ix as u8, iy as u8).unwrap_or(OBSTACLE)
     }
 }
 
@@ -48,36 +50,32 @@ fn range_to(a: Position, b: Position) -> u32 {
     dx.max(dy)
 }
 
-fn is_passable(val: Option<u32>) -> bool {
-    matches!(val, Some(c) if c != 255)
-}
-
 // pf.cc jump_x: horizontal ray scan
 fn jump_x<L, H>(cost: u32, mut pos: Position, dx: i32, look: &L, heuristic: &H) -> Option<Position>
 where
     L: Fn(u8, u8) -> Option<u32>,
     H: Fn(Position) -> u32,
 {
-    let mut prev_cost_u = look_at(pos.x as i32, pos.y as i32 - 1, look);
-    let mut prev_cost_d = look_at(pos.x as i32, pos.y as i32 + 1, look);
+    let mut prev_cost_u = look_cost(pos.x as i32, pos.y as i32 - 1, look);
+    let mut prev_cost_d = look_cost(pos.x as i32, pos.y as i32 + 1, look);
     loop {
         if heuristic(pos) == 0 || is_near_border_pos(pos.x) {
             break;
         }
         let nx = pos.x as i32 + dx;
-        let cost_u = look_at(nx, pos.y as i32 - 1, look);
-        let cost_d = look_at(nx, pos.y as i32 + 1, look);
-        if (is_passable(cost_u) && prev_cost_u != Some(cost)) ||
-           (is_passable(cost_d) && prev_cost_d != Some(cost)) {
+        let cost_u = look_cost(nx, pos.y as i32 - 1, look);
+        let cost_d = look_cost(nx, pos.y as i32 + 1, look);
+        if (cost_u != OBSTACLE && prev_cost_u != cost) ||
+           (cost_d != OBSTACLE && prev_cost_d != cost) {
             break;
         }
         prev_cost_u = cost_u;
         prev_cost_d = cost_d;
         pos.x = nx as u8;
-        let jump_cost = look(pos.x, pos.y);
-        if jump_cost.is_none() || jump_cost == Some(255) {
+        let jump_cost = look_cost(pos.x as i32, pos.y as i32, look);
+        if jump_cost == OBSTACLE {
             return None;
-        } else if jump_cost != Some(cost) {
+        } else if jump_cost != cost {
             break;
         }
     }
@@ -90,26 +88,26 @@ where
     L: Fn(u8, u8) -> Option<u32>,
     H: Fn(Position) -> u32,
 {
-    let mut prev_cost_l = look_at(pos.x as i32 - 1, pos.y as i32, look);
-    let mut prev_cost_r = look_at(pos.x as i32 + 1, pos.y as i32, look);
+    let mut prev_cost_l = look_cost(pos.x as i32 - 1, pos.y as i32, look);
+    let mut prev_cost_r = look_cost(pos.x as i32 + 1, pos.y as i32, look);
     loop {
         if heuristic(pos) == 0 || is_near_border_pos(pos.y) {
             break;
         }
         let ny = pos.y as i32 + dy;
-        let cost_l = look_at(pos.x as i32 - 1, ny, look);
-        let cost_r = look_at(pos.x as i32 + 1, ny, look);
-        if (is_passable(cost_l) && prev_cost_l != Some(cost)) ||
-           (is_passable(cost_r) && prev_cost_r != Some(cost)) {
+        let cost_l = look_cost(pos.x as i32 - 1, ny, look);
+        let cost_r = look_cost(pos.x as i32 + 1, ny, look);
+        if (cost_l != OBSTACLE && prev_cost_l != cost) ||
+           (cost_r != OBSTACLE && prev_cost_r != cost) {
             break;
         }
         prev_cost_l = cost_l;
         prev_cost_r = cost_r;
         pos.y = ny as u8;
-        let jump_cost = look(pos.x, pos.y);
-        if jump_cost.is_none() || jump_cost == Some(255) {
+        let jump_cost = look_cost(pos.x as i32, pos.y as i32, look);
+        if jump_cost == OBSTACLE {
             return None;
-        } else if jump_cost != Some(cost) {
+        } else if jump_cost != cost {
             break;
         }
     }
@@ -122,30 +120,30 @@ where
     L: Fn(u8, u8) -> Option<u32>,
     H: Fn(Position) -> u32,
 {
-    let mut prev_cost_x = look_at(pos.x as i32 - dx, pos.y as i32, look);
-    let mut prev_cost_y = look_at(pos.x as i32, pos.y as i32 - dy, look);
+    let mut prev_cost_x = look_cost(pos.x as i32 - dx, pos.y as i32, look);
+    let mut prev_cost_y = look_cost(pos.x as i32, pos.y as i32 - dy, look);
     loop {
         if heuristic(pos) == 0 || is_near_border_pos(pos.x) || is_near_border_pos(pos.y) {
             break;
         }
-        let diag_x = look_at(pos.x as i32 - dx, pos.y as i32 + dy, look);
-        let diag_y = look_at(pos.x as i32 + dx, pos.y as i32 - dy, look);
-        if (is_passable(diag_x) && prev_cost_x != Some(cost)) ||
-           (is_passable(diag_y) && prev_cost_y != Some(cost)) {
+        let diag_x = look_cost(pos.x as i32 - dx, pos.y as i32 + dy, look);
+        let diag_y = look_cost(pos.x as i32 + dx, pos.y as i32 - dy, look);
+        if (diag_x != OBSTACLE && prev_cost_x != cost) ||
+           (diag_y != OBSTACLE && prev_cost_y != cost) {
             break;
         }
-        prev_cost_x = look_at(pos.x as i32, pos.y as i32 + dy, look);
-        prev_cost_y = look_at(pos.x as i32 + dx, pos.y as i32, look);
-        if (is_passable(prev_cost_y) && jump_x(cost, Position { x: (pos.x as i32 + dx) as u8, y: pos.y }, dx, look, heuristic).is_some()) ||
-           (is_passable(prev_cost_x) && jump_y(cost, Position { x: pos.x, y: (pos.y as i32 + dy) as u8 }, dy, look, heuristic).is_some()) {
+        prev_cost_x = look_cost(pos.x as i32, pos.y as i32 + dy, look);
+        prev_cost_y = look_cost(pos.x as i32 + dx, pos.y as i32, look);
+        if (prev_cost_y != OBSTACLE && jump_x(cost, Position { x: (pos.x as i32 + dx) as u8, y: pos.y }, dx, look, heuristic).is_some()) ||
+           (prev_cost_x != OBSTACLE && jump_y(cost, Position { x: pos.x, y: (pos.y as i32 + dy) as u8 }, dy, look, heuristic).is_some()) {
             break;
         }
         pos.x = (pos.x as i32 + dx) as u8;
         pos.y = (pos.y as i32 + dy) as u8;
-        let jump_cost = look(pos.x, pos.y);
-        if jump_cost.is_none() || jump_cost == Some(255) {
+        let jump_cost = look_cost(pos.x as i32, pos.y as i32, look);
+        if jump_cost == OBSTACLE {
             return None;
-        } else if jump_cost != Some(cost) {
+        } else if jump_cost != cost {
             break;
         }
     }
@@ -176,6 +174,7 @@ pub fn search(
     swamp_cost: u32,
     heuristic_weight: f64,
     max_ops: u32,
+    max_cost: u32,
     flee: bool,
     custom_cm: Option<&CostMatrix>,
 ) -> SearchResults {
@@ -216,7 +215,7 @@ pub fn search(
                 if dist > r {
                     ret = ret.min(dist - r);
                 } else {
-                    return 0;
+                    ret = 0;
                 }
             }
             if ret == u32::MAX { 0 } else { ret }
@@ -301,7 +300,9 @@ pub fn search(
         let pos = pos_from_index(current_index);
         let h_cost = heuristic(pos);
         let h_weighted = (h_cost as f64 * heuristic_weight) as u32;
-        let g_cost = current_priority.saturating_sub(h_weighted);
+        // Match C++ unsigned int subtraction (current.second - cost_t(h_cost * heuristic_weight))
+        // which uses 32-bit wrap-around arithmetic rather than saturating to zero.
+        let g_cost = current_priority.wrapping_sub(h_weighted);
 
         if h_cost == 0 {
             min_node = Some(pos);
@@ -314,6 +315,11 @@ pub fn search(
             min_node_g = g_cost;
         }
 
+        // pf.cc line 549: If estimated cost exceeds max_cost, terminate search early
+        if g_cost.saturating_add(h_cost) > max_cost {
+            break;
+        }
+
         ops += 1;
 
         // pf.cc jps(): compute direction from parent
@@ -321,6 +327,58 @@ pub fn search(
         let parent = pos_from_index(parent_index);
         let dx = (pos.x as i32 - parent.x as i32).signum();
         let dy = (pos.y as i32 - parent.y as i32).signum();
+
+        // pf.cc lines 309-364: First check if we're jumping to/from a border
+        let mut border_neighbors: [Option<Position>; 3] = [None, None, None];
+        let mut border_count = 0;
+        if pos.x == 0 {
+            if dx == -1 {
+                if pos.x > 0 { border_neighbors[0] = Some(Position { x: pos.x - 1, y: pos.y }); border_count = 1; }
+            } else if dx == 1 {
+                if pos.x < 99 && pos.y > 0 { border_neighbors[0] = Some(Position { x: pos.x + 1, y: pos.y - 1 }); }
+                if pos.x < 99 { border_neighbors[1] = Some(Position { x: pos.x + 1, y: pos.y }); }
+                if pos.x < 99 && pos.y < 99 { border_neighbors[2] = Some(Position { x: pos.x + 1, y: pos.y + 1 }); }
+                border_count = 3;
+            }
+        } else if pos.x == 99 {
+            if dx == 1 {
+                if pos.x < 99 { border_neighbors[0] = Some(Position { x: pos.x + 1, y: pos.y }); border_count = 1; }
+            } else if dx == -1 {
+                if pos.x > 0 && pos.y > 0 { border_neighbors[0] = Some(Position { x: pos.x - 1, y: pos.y - 1 }); }
+                if pos.x > 0 { border_neighbors[1] = Some(Position { x: pos.x - 1, y: pos.y }); }
+                if pos.x > 0 && pos.y < 99 { border_neighbors[2] = Some(Position { x: pos.x - 1, y: pos.y + 1 }); }
+                border_count = 3;
+            }
+        } else if pos.y == 0 {
+            if dy == -1 {
+                if pos.y > 0 { border_neighbors[0] = Some(Position { x: pos.x, y: pos.y - 1 }); border_count = 1; }
+            } else if dy == 1 {
+                if pos.x > 0 && pos.y < 99 { border_neighbors[0] = Some(Position { x: pos.x - 1, y: pos.y + 1 }); }
+                if pos.y < 99 { border_neighbors[1] = Some(Position { x: pos.x, y: pos.y + 1 }); }
+                if pos.x < 99 && pos.y < 99 { border_neighbors[2] = Some(Position { x: pos.x + 1, y: pos.y + 1 }); }
+                border_count = 3;
+            }
+        } else if pos.y == 99 {
+            if dy == 1 {
+                if pos.y < 99 { border_neighbors[0] = Some(Position { x: pos.x, y: pos.y + 1 }); border_count = 1; }
+            } else if dy == -1 {
+                if pos.x > 0 && pos.y > 0 { border_neighbors[0] = Some(Position { x: pos.x - 1, y: pos.y - 1 }); }
+                if pos.y > 0 { border_neighbors[1] = Some(Position { x: pos.x, y: pos.y - 1 }); }
+                if pos.x < 99 && pos.y > 0 { border_neighbors[2] = Some(Position { x: pos.x + 1, y: pos.y - 1 }); }
+                border_count = 3;
+            }
+        }
+
+        if border_count != 0 {
+            for i in 0..border_count {
+                if let Some(nb) = border_neighbors[i] {
+                    if let Some(n_cost) = look(nb.x, nb.y) {
+                        push_node(&mut heap, &mut parents, &mut open_closed, current_index, nb, g_cost + n_cost);
+                    }
+                }
+            }
+            continue; // pf.cc line 363 early return
+        }
 
         let cost = look(pos.x, pos.y).unwrap_or(plain_cost);
 
@@ -389,7 +447,7 @@ pub fn search(
                         do_jump_neighbor(&mut heap, &mut parents, &mut open_closed, neighbor, g_cost, n_cost);
                     }
                 }
-                if look_at(pos.x as i32 - dx, pos.y as i32, &look) != Some(cost) {
+                if look_cost(pos.x as i32 - dx, pos.y as i32, &look) != cost {
                     let fx = pos.x as i32 - dx;
                     let fy = pos.y as i32 + dy;
                     if fx >= 0 && fx < 100 && fy >= 0 && fy < 100 {
@@ -399,7 +457,7 @@ pub fn search(
                         }
                     }
                 }
-                if look_at(pos.x as i32, pos.y as i32 - dy, &look) != Some(cost) {
+                if look_cost(pos.x as i32, pos.y as i32 - dy, &look) != cost {
                     let fx = pos.x as i32 + dx;
                     let fy = pos.y as i32 - dy;
                     if fx >= 0 && fx < 100 && fy >= 0 && fy < 100 {
@@ -410,7 +468,7 @@ pub fn search(
                     }
                 }
             } else {
-                if border_dy == 1 || look_at(pos.x as i32, pos.y as i32 + 1, &look) != Some(cost) {
+                if border_dy == 1 || look_cost(pos.x as i32, pos.y as i32 + 1, &look) != cost {
                     let fx = pos.x as i32 + dx;
                     let fy = pos.y as i32 + 1;
                     if fx >= 0 && fx < 100 && fy >= 0 && fy < 100 {
@@ -420,7 +478,7 @@ pub fn search(
                         }
                     }
                 }
-                if border_dy == -1 || look_at(pos.x as i32, pos.y as i32 - 1, &look) != Some(cost) {
+                if border_dy == -1 || look_cost(pos.x as i32, pos.y as i32 - 1, &look) != cost {
                     let fx = pos.x as i32 + dx;
                     let fy = pos.y as i32 - 1;
                     if fx >= 0 && fx < 100 && fy >= 0 && fy < 100 {
@@ -432,7 +490,7 @@ pub fn search(
                 }
             }
         } else if dy != 0 {
-            if border_dx == 1 || look_at(pos.x as i32 + 1, pos.y as i32, &look) != Some(cost) {
+            if border_dx == 1 || look_cost(pos.x as i32 + 1, pos.y as i32, &look) != cost {
                 let fx = pos.x as i32 + 1;
                 let fy = pos.y as i32 + dy;
                 if fx >= 0 && fx < 100 && fy >= 0 && fy < 100 {
@@ -442,7 +500,7 @@ pub fn search(
                     }
                 }
             }
-            if border_dx == -1 || look_at(pos.x as i32 - 1, pos.y as i32, &look) != Some(cost) {
+            if border_dx == -1 || look_cost(pos.x as i32 - 1, pos.y as i32, &look) != cost {
                 let fx = pos.x as i32 - 1;
                 let fy = pos.y as i32 + dy;
                 if fx >= 0 && fx < 100 && fy >= 0 && fy < 100 {

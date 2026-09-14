@@ -72,6 +72,7 @@ pub struct SearchPathOptions {
     pub max_rooms: std::cell::Cell<Option<u32>>,
     pub plain_cost: std::cell::Cell<Option<u8>>,
     pub swamp_cost: std::cell::Cell<Option<u8>>,
+    pub max_cost: std::cell::Cell<Option<u32>>,
     pub flee: std::cell::Cell<Option<bool>>,
 }
 
@@ -84,6 +85,7 @@ impl SearchPathOptions {
             max_rooms: std::cell::Cell::new(None),
             plain_cost: std::cell::Cell::new(None),
             swamp_cost: std::cell::Cell::new(None),
+            max_cost: std::cell::Cell::new(None),
             flee: std::cell::Cell::new(None),
         }
     }
@@ -104,6 +106,9 @@ impl SearchPathOptions {
     }
     pub fn swamp_cost(&self, val: u8) {
         self.swamp_cost.set(Some(val));
+    }
+    pub fn max_cost(&self, val: u32) {
+        self.max_cost.set(Some(val));
     }
     pub fn flee(&self, val: bool) {
         self.flee.set(Some(val));
@@ -1121,6 +1126,8 @@ pub fn search_path(
         };
     }
 
+    let max_cost = options.and_then(|o| o.max_cost.get()).unwrap_or(u32::MAX);
+
     // Call underlying C++ / pf_cc search implementation
     crate::pf_cc::search(
         start,
@@ -1129,6 +1136,7 @@ pub fn search_path(
         swamp_cost,
         heuristic_weight,
         max_ops,
+        max_cost,
         flee,
         custom_cm.as_ref(),
     )

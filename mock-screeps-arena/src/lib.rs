@@ -825,9 +825,24 @@ mod tests {
                 } else if res.cost != expected_ref_cost {
                     cost_mismatches += 1;
                     println!(
-                        "COST MISMATCH: ox={} oy={} gx={} gy={} range={} flee={} | REF cost={} | OUR cost={}",
-                        ox, oy, gx, gy, range, flee, ref_cost, res.cost
+                        "COST MISMATCH: ox={} oy={} gx={} gy={} range={} flee={} | REF cost={} ops={} len={} | OUR cost={} ops={} len={}",
+                        ox, oy, gx, gy, range, flee, ref_cost, test["ops"], ref_path_len, res.cost, res.ops, res.path.len()
                     );
+                    let our_pts: Vec<(u8, u8)> = res.path.iter().map(|p| (p.x, p.y)).collect();
+                    if let Some(ref_path_arr) = test["path"].as_array() {
+                        let ref_pts: Vec<(u8, u8)> = ref_path_arr.iter().map(|p| (p["x"].as_u64().unwrap_or(0) as u8, p["y"].as_u64().unwrap_or(0) as u8)).collect();
+                        let first_dev = our_pts.iter().zip(ref_pts.iter()).enumerate().find(|(_, (a, b))| a != b);
+                        if let Some((idx, (our_p, ref_p))) = first_dev {
+                            println!("   FIRST DEVIATION at step [{}]: OUR ({}, {}) vs REF ({}, {})", idx, our_p.0, our_p.1, ref_p.0, ref_p.1);
+                        } else if our_pts.len() != ref_pts.len() {
+                            let common_len = our_pts.len().min(ref_pts.len());
+                            println!("   FIRST DEVIATION at step [{}]: path truncated/extended (OUR len={} vs REF len={})", common_len, our_pts.len(), ref_pts.len());
+                        }
+                        println!("   OUR path: {:?}", our_pts);
+                        println!("   REF path: {:?}", ref_pts);
+                    } else {
+                        println!("   OUR path: {:?}", our_pts);
+                    }
                 } else if res.path.len() != ref_path_len {
                     len_mismatches += 1;
                     println!(
